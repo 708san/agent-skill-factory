@@ -53,7 +53,7 @@ export default { async fetch(request) {
         target: { type: 'string', enum: ['skill','factory'] }, visibility: { type: 'string', enum: ['public','private'] }, head: { type: 'string' }, base: { type: 'string' }, title: { type: 'string' }, body: { type: 'string' }
       }, ['head','title']), responses: { '200': { description: 'Pull request opened' } } } }
     },
-    components: { securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' } } },
+    components: { schemas: {},　securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' } } },
     security: [{ bearerAuth: [] }]
   };
   return json(schema);
