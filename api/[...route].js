@@ -445,13 +445,17 @@ function requirePost(request) {
 }
 
 
-function assertAllowedFactoryPath(path) {
+
+
+  function assertAllowedFactoryPath(path) {
   if (!path) {
     throw new Error('path is required');
   }
 
+  const segments = path.split('/');
+
   if (
-    path.includes('..') ||
+    segments.includes('..') ||
     path.startsWith('/') ||
     path.includes('\\')
   ) {
