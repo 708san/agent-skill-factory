@@ -8,7 +8,7 @@ export default { async fetch(request) {
   };
   const schema = {
     openapi: '3.1.0',
-    info: { title: 'Agent Skill Factory Registry API', version: '0.3.0' },
+    info: { title: 'Agent Skill Factory Registry API', version: '0.4.0' },
     servers: [{ url: origin }],
     paths: {
       '/api/health': { get: { operationId: 'healthCheck', summary: 'Check the Factory API.', responses: { '200': { description: 'OK' } } } },
@@ -16,7 +16,19 @@ export default { async fetch(request) {
         { name: 'name', in: 'query', required: true, schema: { type: 'string', enum: ['orchestrator','architect','author','reviewer','publisher'] } },
         { name: 'ref', in: 'query', required: false, schema: { type: 'string' } }
       ], responses: { '200': { description: 'Factory module' } } } },
-      '/api/skills': { get: { operationId: 'listSkills', summary: 'List Skills.', parameters: [qVisibility, { name: 'ref', in: 'query', required: false, schema: { type: 'string' } }], responses: { '200': { description: 'Skill list' } } } },
+      '/api/factory-file': { get: { operationId: 'getFactoryFile', summary: 'Read one UTF-8 source file from the Agent Skill Factory repository.', parameters: [
+        { name: 'path', in: 'query', required: true, schema: { type: 'string' }, description: 'Repository-relative path such as api/[...route].js, lib/skills.js, or gpt/INSTRUCTIONS.md.' },
+        { name: 'ref', in: 'query', required: false, schema: { type: 'string' }, description: 'Optional Git ref such as main or a feature branch.' }
+      ], responses: { '200': { description: 'Factory source file' }, '400': { description: 'Invalid path or request' }, '401': { description: 'Unauthorized' } } } },
+      '/api/skills': { get: { operationId: 'listSkills', summary: 'List Skills.', parameters: [qVisibility,
+        { name: 'ref', in: 'query', required: false, schema: { type: 'string' } }
+      ], responses: { '200': { description: 'Skill list' } } } },
+      '/api/search-skills': { get: { operationId: 'searchSkills', summary: 'Search Skills by name and SKILL.md metadata.', parameters: [
+        { name: 'query', in: 'query', required: true, schema: { type: 'string' } },
+        qVisibility,
+        { name: 'limit', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 20, default: 5 } },
+        { name: 'ref', in: 'query', required: false, schema: { type: 'string' } }
+      ], responses: { '200': { description: 'Matching Skills with name, description, visibility, and optional metadata.' }, '400': { description: 'Invalid query or visibility.' } } } },
       '/api/skill': { get: { operationId: 'getSkill', summary: "Load a Skill's SKILL.md.", parameters: [qVisibility,
         { name: 'name', in: 'query', required: true, schema: { type: 'string' } },
         { name: 'ref', in: 'query', required: false, schema: { type: 'string' } }
@@ -53,7 +65,7 @@ export default { async fetch(request) {
         target: { type: 'string', enum: ['skill','factory'] }, visibility: { type: 'string', enum: ['public','private'] }, head: { type: 'string' }, base: { type: 'string' }, title: { type: 'string' }, body: { type: 'string' }
       }, ['head','title']), responses: { '200': { description: 'Pull request opened' } } } }
     },
-    components: { schemas: {},　securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' } } },
+    components: { schemas: {}, securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' } } },
     security: [{ bearerAuth: [] }]
   };
   return json(schema);
