@@ -104,9 +104,17 @@ async function handleFactoryModule(url) {
   });
 }
 
+
+
 async function handleFactoryFile(url) {
-  const path = url.searchParams.get('path');
+  let path = url.searchParams.get('path');
   const ref = url.searchParams.get('ref') || undefined;
+
+  const aliases = {
+    'api-router': 'api/[...route].js'
+  };
+
+  path = aliases[path] || path;
 
   assertAllowedFactoryPath(path);
 
