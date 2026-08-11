@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Skill System Spec",
+  "type": "object",
+  "required": ["goal", "capability_placement", "skills"],
+  "properties": {
+    "goal": {"type": "string"},
+    "capability_placement": {"type": "array", "items": {"type": "object"}},
+    "skills": {"type": "array", "items": {"$ref": "skill-contract.schema.json"}},
+    "handoffs": {"type": "array", "items": {"type": "string"}}
+  }
+}

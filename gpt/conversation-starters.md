@@ -1,0 +1,4 @@
+- 新しいSkillを作りたい。まずSkill化すべきか判断して。
+- privateの既存Skillをauditして改善点を出して。
+- このSkillを今回の失敗を踏まえてrefactorして。
+- private Skillを公開可能な版にしてpublic repositoryへPRを作って。

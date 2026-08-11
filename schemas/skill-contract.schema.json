@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Skill Contract",
+  "type": "object",
+  "required": ["name", "responsibility", "trigger", "non_trigger", "inputs", "outputs", "workflow", "quality_gate"],
+  "properties": {
+    "name": {"type": "string"},
+    "responsibility": {"type": "string"},
+    "trigger": {"type": "array", "items": {"type": "string"}},
+    "non_trigger": {"type": "array", "items": {"type": "string"}},
+    "inputs": {"type": "array", "items": {"type": "string"}},
+    "outputs": {"type": "array", "items": {"type": "string"}},
+    "workflow": {"type": "array", "items": {"type": "string"}},
+    "quality_gate": {"type": "array", "items": {"type": "string"}},
+    "handoffs": {"type": "array", "items": {"type": "string"}},
+    "resources": {"type": "array", "items": {"type": "string"}}
+  }
+}

@@ -1,0 +1,239 @@
+openapi: 3.1.0
+info:
+  title: Agent Skill Factory Registry API
+  version: 0.3.0
+  description: Narrow GitHub-backed API for a web-only Agent Skill Factory.
+servers:
+  - url: https://YOUR-VERCEL-DOMAIN.vercel.app
+paths:
+  /api/health:
+    get:
+      operationId: healthCheck
+      summary: Check whether the Factory API is running.
+      responses:
+        '200': {description: OK}
+  /api/factory-module:
+    get:
+      operationId: getFactoryModule
+      summary: Load the current SKILL.md for a Factory module.
+      parameters:
+        - in: query
+          name: name
+          required: true
+          schema: {type: string, enum: [orchestrator, architect, author, reviewer, publisher]}
+        - in: query
+          name: ref
+          required: false
+          schema: {type: string}
+      responses:
+        '200': {description: Factory module}
+  /api/skills:
+    get:
+      operationId: listSkills
+      summary: List public or private Skills.
+      parameters:
+        - in: query
+          name: visibility
+          required: true
+          schema: {type: string, enum: [public, private]}
+        - in: query
+          name: ref
+          required: false
+          schema: {type: string}
+      responses:
+        '200': {description: Skill names}
+  /api/skill:
+    get:
+      operationId: getSkill
+      summary: Load a Skill's current SKILL.md.
+      parameters:
+        - in: query
+          name: visibility
+          required: true
+          schema: {type: string, enum: [public, private]}
+        - in: query
+          name: name
+          required: true
+          schema: {type: string}
+        - in: query
+          name: ref
+          required: false
+          schema: {type: string}
+      responses:
+        '200': {description: Skill}
+  /api/skill-file:
+    get:
+      operationId: getSkillFile
+      summary: Load one text resource inside a Skill directory.
+      parameters:
+        - in: query
+          name: visibility
+          required: true
+          schema: {type: string, enum: [public, private]}
+        - in: query
+          name: name
+          required: true
+          schema: {type: string}
+        - in: query
+          name: path
+          required: true
+          description: Path relative to the Skill root, such as references/rubric.md.
+          schema: {type: string}
+        - in: query
+          name: ref
+          required: false
+          schema: {type: string}
+      responses:
+        '200': {description: Skill resource}
+  /api/skill-history:
+    get:
+      operationId: getSkillHistory
+      summary: Get recent commits touching a Skill or Factory module.
+      parameters:
+        - in: query
+          name: target
+          required: false
+          schema: {type: string, enum: [skill, factory], default: skill}
+        - in: query
+          name: visibility
+          required: false
+          schema: {type: string, enum: [public, private]}
+        - in: query
+          name: name
+          required: true
+          schema: {type: string}
+        - in: query
+          name: ref
+          required: false
+          schema: {type: string}
+      responses:
+        '200': {description: Commit history}
+  /api/create-branch:
+    post:
+      operationId: createChangeBranch
+      summary: Create a change branch in the Factory, public Skills, or private Skills repository.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [branch]
+              properties:
+                target: {type: string, enum: [skill, factory], default: skill}
+                visibility: {type: string, enum: [public, private]}
+                branch: {type: string}
+                base: {type: string, default: main}
+      responses:
+        '200': {description: Branch created}
+  /api/write-files:
+    post:
+      operationId: writeRegistryFiles
+      summary: Create or replace UTF-8 text files on an existing change branch.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [branch, files]
+              properties:
+                target: {type: string, enum: [skill, factory], default: skill}
+                visibility: {type: string, enum: [public, private]}
+                branch: {type: string}
+                message: {type: string}
+                files:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [path, content]
+                    properties:
+                      path: {type: string}
+                      content: {type: string}
+      responses:
+        '200': {description: Files written}
+  /api/delete-file:
+    post:
+      operationId: deleteRegistryFile
+      summary: Delete one text file from an existing change branch.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [branch, path]
+              properties:
+                target: {type: string, enum: [skill, factory], default: skill}
+                visibility: {type: string, enum: [public, private]}
+                branch: {type: string}
+                path: {type: string}
+                message: {type: string}
+      responses:
+        '200': {description: File deleted}
+  /api/validate-skill:
+    post:
+      operationId: validateSkill
+      summary: Validate proposed SKILL.md text and scan for obvious secrets before writing.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [skillMd]
+              properties:
+                skillMd: {type: string}
+      responses:
+        '200': {description: Validation result}
+  /api/compare:
+    get:
+      operationId: compareChangeBranch
+      summary: Compare a change branch against its base and return changed files and patches.
+      parameters:
+        - in: query
+          name: target
+          required: false
+          schema: {type: string, enum: [skill, factory], default: skill}
+        - in: query
+          name: visibility
+          required: false
+          schema: {type: string, enum: [public, private]}
+        - in: query
+          name: head
+          required: true
+          schema: {type: string}
+        - in: query
+          name: base
+          required: false
+          schema: {type: string, default: main}
+      responses:
+        '200': {description: Diff summary}
+  /api/pull-request:
+    post:
+      operationId: openSkillPullRequest
+      summary: Open a pull request from a prepared change branch.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [head, title]
+              properties:
+                target: {type: string, enum: [skill, factory], default: skill}
+                visibility: {type: string, enum: [public, private]}
+                head: {type: string}
+                base: {type: string, default: main}
+                title: {type: string}
+                body: {type: string}
+      responses:
+        '200': {description: Pull request opened}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+security:
+  - bearerAuth: []

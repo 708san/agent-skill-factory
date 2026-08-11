@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Skill Evaluation Result",
+  "type": "object",
+  "required": ["status", "routing", "behavior", "outcome", "regression"],
+  "properties": {
+    "status": {"enum": ["PASS", "PASS_WITH_WARNINGS", "FAIL"]},
+    "routing": {"type": "object"},
+    "behavior": {"type": "object"},
+    "outcome": {"type": "object"},
+    "regression": {"type": "object"},
+    "required_changes": {"type": "array", "items": {"type": "string"}}
+  }
+}
