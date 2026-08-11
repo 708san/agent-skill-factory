@@ -16,7 +16,8 @@ import {
   deleteTextFile,
   compare,
   createPullRequest,
-  listCommitsForPath
+  listCommitsForPath,
+  getTextFile
 } from '../lib/github.js';
 
 import {
@@ -43,6 +44,9 @@ export default {
       switch (route) {
         case 'factory-module':
           return handleFactoryModule(url);
+
+        case 'factory-file':
+          return handleFactoryFile(url);
 
         case 'skills':
           return handleSkills(url);
@@ -97,6 +101,27 @@ async function handleFactoryModule(url) {
   return json({
     ok: true,
     ...(await getFactoryModule(name, ref))
+  });
+}
+
+async function handleFactoryFile(url) {
+  const path = url.searchParams.get('path');
+  const ref = url.searchParams.get('ref') || undefined;
+
+  assertAllowedFactoryPath(path);
+
+  const file = await getTextFile(
+    config().factoryRepo,
+    path,
+    ref
+  );
+
+  return json({
+    ok: true,
+    path: file.path,
+    content: file.text,
+    sha: file.sha,
+    ref: ref || config().baseBranch
   });
 }
 
@@ -408,5 +433,68 @@ async function handlePullRequest(request) {
 function requirePost(request) {
   if (request.method !== 'POST') {
     throw new Error('POST required');
+  }
+}
+
+
+function assertAllowedFactoryPath(path) {
+  if (!path) {
+    throw new Error('path is required');
+  }
+
+  if (
+    path.includes('..') ||
+    path.startsWith('/') ||
+    path.includes('\\')
+  ) {
+    throw new Error('Invalid factory path');
+  }
+
+  const deniedRootFiles = new Set([
+    '.env',
+    '.env.local',
+    '.env.production',
+    '.env.development',
+    '.env.test',
+    'credentials.json',
+    'secrets.json'
+  ]);
+
+  if (
+    deniedRootFiles.has(path) ||
+    path.startsWith('.env.')
+  ) {
+    throw new Error('Reading secret files is not allowed');
+  }
+
+  const allowedPrefixes = [
+    'factory/',
+    'api/',
+    'lib/',
+    'gpt/',
+    'schemas/',
+    'templates/',
+    'evals/',
+    'docs/'
+  ];
+
+  const allowedRootFiles = new Set([
+    'README.md',
+    'package.json',
+    'vercel.json',
+    '.env.example',
+    '.gitignore'
+  ]);
+
+  const allowed =
+    allowedRootFiles.has(path) ||
+    allowedPrefixes.some((prefix) =>
+      path.startsWith(prefix)
+    );
+
+  if (!allowed) {
+    throw new Error(
+      'Path is outside the readable Factory source tree'
+    );
   }
 }
