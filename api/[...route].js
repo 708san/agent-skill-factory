@@ -268,11 +268,13 @@ async function handleWriteFiles(request) {
         'Each file needs path and content'
       );
     }
-
+    const pathSegments = file.path.split('/');
     if (
-      file.path.includes('..') ||
-      file.path.startsWith('/')
+      pathSegments.includes('..') ||
+      file.path.startsWith('/') ||
+      file.path.includes('\\')
     ) {
+
       throw new Error(
         `Invalid path: ${file.path}`
       );
