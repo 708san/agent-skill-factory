@@ -23,6 +23,7 @@ import {
 import {
   getFactoryModule,
   listSkills,
+  searchSkills,
   getSkill,
   getSkillFile,
   validateSkillText
@@ -50,6 +51,9 @@ export default {
 
         case 'skills':
           return handleSkills(url);
+
+        case 'search-skills':
+          return handleSearchSkills(url);
 
         case 'skill':
           return handleSkill(url);
@@ -105,7 +109,6 @@ async function handleFactoryModule(url) {
 }
 
 
-
 async function handleFactoryFile(url) {
   let path = url.searchParams.get('path');
   const ref = url.searchParams.get('ref') || undefined;
@@ -142,6 +145,21 @@ async function handleSkills(url) {
     ok: true,
     visibility,
     skills: await listSkills(visibility, ref)
+  });
+}
+
+
+async function handleSearchSkills(url) {
+  const query = url.searchParams.get('query');
+  const visibility = url.searchParams.get('visibility');
+  const limit = url.searchParams.get('limit') || 5;
+  const ref = url.searchParams.get('ref') || undefined;
+
+  return json({
+    ok: true,
+    query,
+    visibility,
+    skills: await searchSkills(query, visibility, limit, ref)
   });
 }
 
@@ -447,9 +465,7 @@ function requirePost(request) {
 }
 
 
-
-
-  function assertAllowedFactoryPath(path) {
+function assertAllowedFactoryPath(path) {
   if (!path) {
     throw new Error('path is required');
   }
