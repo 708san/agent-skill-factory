@@ -19,7 +19,7 @@ export default {
 
       info: {
         title: 'Agent Skill Factory Registry API',
-        version: '0.3.1'
+        version: '0.4.0'
       },
 
       servers: [
@@ -136,6 +136,51 @@ export default {
             responses: {
               '200': {
                 description: 'Skill list'
+              }
+            }
+          }
+        },
+
+        '/api/search-skills': {
+          get: {
+            operationId: 'searchSkills',
+            summary: 'Search Skills by name and SKILL.md metadata.',
+            parameters: [
+              {
+                name: 'query',
+                in: 'query',
+                required: true,
+                schema: {
+                  type: 'string'
+                }
+              },
+              qVisibility,
+              {
+                name: 'limit',
+                in: 'query',
+                required: false,
+                schema: {
+                  type: 'integer',
+                  minimum: 1,
+                  maximum: 20,
+                  default: 5
+                }
+              },
+              {
+                name: 'ref',
+                in: 'query',
+                required: false,
+                schema: {
+                  type: 'string'
+                }
+              }
+            ],
+            responses: {
+              '200': {
+                description: 'Matching Skills with name, description, visibility, and optional metadata.'
+              },
+              '400': {
+                description: 'Invalid query or visibility.'
               }
             }
           }
