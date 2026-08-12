@@ -1,5 +1,5 @@
 ---
-name: skill-factory-author
+name: skill-author
 description: Implement Agent Skill packages on non-main branches with correct registry paths, progressive disclosure, explicit contracts, appropriate references/scripts/assets/evals, validation, and minimal duplication.
 ---
 
