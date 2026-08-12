@@ -1,103 +1,66 @@
 ---
 name: skill-architect
-description: Decide whether a capability should be a Skill, how many Skills are needed, and how responsibility, contracts, package resources, handoffs, tools, and reuse boundaries should be designed before implementation.
+description: Decide whether a reusable capability belongs as a Skill, Flow, Suite, reference, script, asset, eval, or external tool/API, and design responsibility, contracts, handoffs, placement, and reuse boundaries before implementation.
 ---
 
 # Mission
 
-Design the smallest coherent Skill architecture that solves the user's intent without creating a giant Skill or unnecessary micro-Skills.
+Design the smallest coherent Registry architecture that solves the user's intent without giant Skills, unnecessary micro-Skills, duplicated execution instructions, or ownership coupling.
 
-# Required decisions before authoring
+# Required placement decision
 
-For every create, split, merge, or boundary-changing refactor, decide:
+For every create, split, merge, or boundary-changing refactor, classify each proposed object/resource:
 
-1. whether a Skill is needed at all;
-2. whether the capability is one Skill or multiple Skills;
-3. the boundary among Skill / reference / script / asset / eval / external tool or API;
-4. trigger and non-trigger conditions;
-5. inputs;
-6. outputs;
-7. quality gate;
-8. handoff contract;
-9. failure modes;
-10. reuse potential.
+- independent reusable capability → Skill;
+- reusable known multi-Skill execution plan → Flow;
+- related Skill/Flow capability family, discovery scope, and optional shared policy → Suite;
+- conditionally needed knowledge inside one capability → reference;
+- deterministic repeated computation/validation → script;
+- reusable template or source material → asset;
+- examples/regression behavior → eval;
+- external state/current data/action → external tool/API.
 
-Do not begin authoring until these decisions are sufficiently clear.
+A Flow does not replace compose. Compose remains runtime-generated for unknown tasks. A Suite does not own members.
 
-# Boundary rules
+# Skill invariants
 
-Use these heuristics:
+Skills remain global first-class objects under `skills/<skill-name>/`. Suite membership must not change standalone behavior. Downstream consumers depend on contracts rather than specific upstream names when possible.
 
-- independent user intent + independent output + independently reusable responsibility → separate Skill candidate;
-- conditionally needed knowledge inside one responsibility → reference;
-- deterministic repeated computation, validation, format checking, or static analysis → script;
-- template, image, reusable source material, or reference visual → asset;
-- external state, current data, or external action → external tool/API;
-- examples and regression behavior → eval.
+# Flow design
 
-Multiple workflow steps alone do not justify multiple Skills. If the steps form one natural responsibility, keep them together. Example: review → rewrite can remain one `human-writing-review` Skill.
+Use a Flow only for a deliberately saved, reusable, known execution plan. Keep Skill implementation and Skill-specific prompts out of FLOW.json; the Skill remains source of truth for How.
 
-Load `references/capability-placement.md` and `references/boundary-rules.md` when placement or split/merge decisions are non-trivial. Load `references/skill-contract.md` when a Skill may participate in multi-Skill composition or its input/output boundary is unclear.
+v1 Flow is a DAG with steps that represent id, target type, dependencies, required/optional status, declarative condition, input handoff, and expected outputs. Support:
 
-# Skill Contract
+- `exact_skill`: designer pins a specific Skill. Runtime must not substitute it silently.
+- `capability`: declares a capability query; runtime may dynamically resolve one or more Skills when allowed.
 
-A reusable Skill design should make these explicit without bloating frontmatter:
+Do not allow Flow→Flow recursion in v1. Keep the tagged step schema extensible so a future subflow type can be added deliberately.
 
-- responsibility
-- trigger
-- non-trigger
-- inputs
-- outputs
-- quality gate
-- `handoff_in`
-- `handoff_out`
-- failure modes
+Conditions must be declarative equality checks under `condition.when`; no eval, JavaScript, executable expressions, or natural-language condition engine.
 
-Keep Skills loosely coupled. A downstream Skill should depend on an input contract, not on a specific upstream Skill name.
+Prefer no commit-SHA pinning. If compatibility needs to be asserted, use lightweight contract fields on exact references rather than an independent versioning subsystem.
 
-Example: `visual-composition` may require target audience, message, CTA, and visual constraints. It should not require that those values came from `ad-concept-planning`.
+# Suite design
 
-# Composition design
+A Suite references Skills and Flows non-owningly. It may contain metadata/tags and optional shared policies, quality gates, or artifact-contract references. Shared policy applies only when the Suite/Flow context is explicitly active; never inject it into standalone member Skill use.
 
-When several Skills may be needed:
+The same Skill or Flow may be referenced by multiple Suites.
 
-- identify which responsibilities are independently reusable;
-- define required and optional handoff fields;
-- mark dependencies versus logically parallelizable work;
-- prefer the minimum Skill set needed for the end goal;
-- avoid fixed chains when Registry discovery can select suitable Skills dynamically;
-- preserve user stop points and explicit Skill ordering.
+# Visibility
+
+Public Flow/Suite → public references only. Private Flow/Suite → explicit public or private references. Never encode private Registry names or repository details in public manifests.
 
 # Package architecture
 
-Design the Skill package before authoring prose. The canonical root is always:
+Canonical roots:
 
-`skills/<skill-name>/`
+- `skills/<name>/SKILL.md` plus justified resources;
+- `flows/<name>/FLOW.json` plus optional evals;
+- `suites/<name>/SUITE.json` plus optional evals.
 
-Required:
-
-- `skills/<skill-name>/SKILL.md`
-
-Optional when justified:
-
-- `references/`
-- `scripts/`
-- `assets/`
-- `evals/`
-
-Do not design a root-level `<skill-name>/SKILL.md` package.
-
-# Progressive Disclosure
-
-Keep core execution rules in SKILL.md. Move detailed or conditional material out when it does not need to be loaded every run. Do not move essential decision rules so far out that basic execution requires loading every reference.
+Use JSON for Flow/Suite v1 manifests and native parsing/validation unless a concrete requirement justifies another dependency.
 
 # Definition of done
 
-Architecture is ready for authoring when:
-
-- the need for a Skill is justified;
-- one-vs-many Skill boundaries are explicit;
-- package resources are allocated intentionally;
-- inputs/outputs/quality gate and handoff are clear;
-- failure modes and non-triggers are defined;
-- the design supports reuse without unnecessary coupling.
+Architecture is ready when object type and placement are justified, Skill independence is preserved, Flow/Suite references are non-owning, Flow handoffs/completion/failure semantics are explicit, visibility rules are safe, and routing does not degrade existing Skill discovery or dynamic compose.
