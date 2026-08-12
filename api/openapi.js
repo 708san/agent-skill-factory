@@ -3,48 +3,692 @@ import { json } from '../lib/http.js';
 export default {
   async fetch(request) {
     const origin = new URL(request.url).origin;
-    const visibility = query('visibility', true, { type: 'string', enum: ['public', 'private'] });
-    const ref = query('ref', false, { type: 'string' });
-    const name = query('name', true, { type: 'string' });
-    const search = [query('query', true, { type: 'string' }), visibility, query('limit', false, { type: 'integer', minimum: 1, maximum: 20, default: 5 }), ref];
-    const target = { type: 'string', enum: ['skill', 'registry', 'factory'], default: 'skill' };
 
-    return json({
-      openapi: '3.1.0',
-      info: { title: 'Agent Skill Factory Registry API', version: '0.5.0' },
-      servers: [{ url: origin }],
-      paths: {
-        '/api/health': get('healthCheck', 'Check the Factory API.'),
-        '/api/factory-module': get('getFactoryModule', 'Load a current Factory module.', [query('name', true, { type: 'string', enum: ['orchestrator', 'architect', 'author', 'reviewer', 'publisher'] }), ref]),
-        '/api/factory-file': get('getFactoryFile', 'Read one UTF-8 source file from the Factory repository.', [query('path', true, { type: 'string' }), ref]),
-        '/api/skills': get('listSkills', 'List Skills.', [visibility, ref]),
-        '/api/search-skills': get('searchSkills', 'Search Skills by name and SKILL.md metadata.', search),
-        '/api/skill': get('getSkill', "Load a Skill's SKILL.md.", [visibility, name, ref]),
-        '/api/skill-file': get('getSkillFile', 'Load one text resource within a Skill.', [visibility, name, query('path', true, { type: 'string' }), ref]),
-        '/api/flows': get('listFlows', 'List saved Flows.', [visibility, ref]),
-        '/api/search-flows': get('searchFlows', 'Search saved Flows independently from Skill discovery.', search),
-        '/api/flow': get('getFlow', "Load a Flow's FLOW.json.", [visibility, name, ref]),
-        '/api/suites': get('listSuites', 'List Suites.', [visibility, ref]),
-        '/api/search-suites': get('searchSuites', 'Search Suites.', search),
-        '/api/suite': get('getSuite', "Load a Suite's SUITE.json.", [visibility, name, ref]),
-        '/api/skill-history': get('getSkillHistory', 'Legacy-compatible history endpoint for a Skill, Flow, Suite, or Factory module.', [query('target', false, { type: 'string', enum: ['skill', 'flow', 'suite', 'factory'], default: 'skill' }), query('visibility', false, { type: 'string', enum: ['public', 'private'] }), name, ref]),
-        '/api/registry-history': get('getRegistryHistory', 'Get history for a Skill, Flow, Suite, or Factory module.', [query('target', true, { type: 'string', enum: ['skill', 'flow', 'suite', 'factory'] }), query('visibility', false, { type: 'string', enum: ['public', 'private'] }), name, ref]),
-        '/api/create-branch': post('createChangeBranch', 'Create a change branch.', body({ target, visibility: visibility.schema, branch: { type: 'string' }, base: { type: 'string' } }, ['branch'])),
-        '/api/write-files': post('writeRegistryFiles', 'Create or replace UTF-8 text files on a change branch.', body({ target, visibility: visibility.schema, branch: { type: 'string' }, message: { type: 'string' }, files: { type: 'array', minItems: 1, items: { type: 'object', required: ['path', 'content'], properties: { path: { type: 'string' }, content: { type: 'string' } } } }, ['branch', 'files'])),
-        '/api/delete-file': post('deleteRegistryFile', 'Delete one Registry text file on a change branch.', body({ target, visibility: visibility.schema, branch: { type: 'string' }, path: { type: 'string' }, message: { type: 'string' } }, ['branch', 'path'])),
-        '/api/validate-skill': post('validateSkill', 'Validate proposed SKILL.md text and scan obvious secrets.', body({ skillMd: { type: 'string' } }, ['skillMd'])),
-        '/api/validate-flow': post('validateFlow', 'Validate a proposed or stored FLOW.json, references, DAG, handoffs, conditions, completion, and visibility.', body({ visibility: visibility.schema, name: { type: 'string' }, ref: { type: 'string' }, flowJson: { type: 'string' } }, ['visibility', 'name'])),
-        '/api/validate-suite': post('validateSuite', 'Validate a proposed or stored SUITE.json, references, duplicates, and visibility.', body({ visibility: visibility.schema, name: { type: 'string' }, ref: { type: 'string' }, suiteJson: { type: 'string' } }, ['visibility', 'name'])),
-        '/api/compare': get('compareChangeBranch', 'Compare a change branch against its base.', [query('target', false, target), query('visibility', false, visibility.schema), query('head', true, { type: 'string' }), query('base', false, { type: 'string' })]),
-        '/api/pull-request': post('openSkillPullRequest', 'Open a pull request from a prepared branch.', body({ target, visibility: visibility.schema, head: { type: 'string' }, base: { type: 'string' }, title: { type: 'string' }, body: { type: 'string' } }, ['head', 'title']))
+    const qVisibility = {
+      name: 'visibility',
+      in: 'query',
+      required: true,
+      schema: {
+        type: 'string',
+        enum: ['public', 'private']
+      }
+    };
+
+    const qRef = {
+      name: 'ref',
+      in: 'query',
+      required: false,
+      schema: {
+        type: 'string'
+      }
+    };
+
+    const qName = {
+      name: 'name',
+      in: 'query',
+      required: true,
+      schema: {
+        type: 'string'
+      }
+    };
+
+    const qSearch = [
+      {
+        name: 'query',
+        in: 'query',
+        required: true,
+        schema: {
+          type: 'string'
+        }
       },
-      components: { schemas: {}, securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' } } },
-      security: [{ bearerAuth: [] }]
-    });
+      qVisibility,
+      {
+        name: 'limit',
+        in: 'query',
+        required: false,
+        schema: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 20,
+          default: 5
+        }
+      },
+      qRef
+    ];
+
+    const registryTarget = {
+      type: 'string',
+      enum: ['skill', 'registry', 'factory']
+    };
+
+    const schema = {
+      openapi: '3.1.0',
+
+      info: {
+        title: 'Agent Skill Factory Registry API',
+        version: '0.5.0'
+      },
+
+      servers: [
+        {
+          url: origin
+        }
+      ],
+
+      paths: {
+        '/api/health': {
+          get: {
+            operationId: 'healthCheck',
+            summary: 'Check the Factory API.',
+            responses: {
+              '200': {
+                description: 'OK'
+              }
+            }
+          }
+        },
+
+        '/api/factory-module': {
+          get: {
+            operationId: 'getFactoryModule',
+            summary: 'Load a current Factory module.',
+            parameters: [
+              {
+                name: 'name',
+                in: 'query',
+                required: true,
+                schema: {
+                  type: 'string',
+                  enum: [
+                    'orchestrator',
+                    'architect',
+                    'author',
+                    'reviewer',
+                    'publisher'
+                  ]
+                }
+              },
+              qRef
+            ],
+            responses: {
+              '200': {
+                description: 'Factory module'
+              }
+            }
+          }
+        },
+
+        '/api/factory-file': {
+          get: {
+            operationId: 'getFactoryFile',
+            summary: 'Read one UTF-8 source file from the Agent Skill Factory repository.',
+            parameters: [
+              {
+                name: 'path',
+                in: 'query',
+                required: true,
+                schema: {
+                  type: 'string'
+                },
+                description:
+                  'Repository-relative path such as api/[...route].js, lib/skills.js, or gpt/INSTRUCTIONS.md.'
+              },
+              {
+                ...qRef,
+                description:
+                  'Optional Git ref such as main or a feature branch.'
+              }
+            ],
+            responses: {
+              '200': {
+                description: 'Factory source file'
+              },
+              '400': {
+                description: 'Invalid path or request'
+              },
+              '401': {
+                description: 'Unauthorized'
+              }
+            }
+          }
+        },
+
+        '/api/skills': {
+          get: {
+            operationId: 'listSkills',
+            summary: 'List Skills.',
+            parameters: [
+              qVisibility,
+              qRef
+            ],
+            responses: {
+              '200': {
+                description: 'Skill list'
+              }
+            }
+          }
+        },
+
+        '/api/search-skills': {
+          get: {
+            operationId: 'searchSkills',
+            summary: 'Search Skills by name and SKILL.md metadata.',
+            parameters: qSearch,
+            responses: {
+              '200': {
+                description: 'Matching Skills with name, description, visibility, and optional metadata.'
+              },
+              '400': {
+                description: 'Invalid query or visibility.'
+              }
+            }
+          }
+        },
+
+        '/api/skill': {
+          get: {
+            operationId: 'getSkill',
+            summary: "Load a Skill's SKILL.md.",
+            parameters: [
+              qVisibility,
+              qName,
+              qRef
+            ],
+            responses: {
+              '200': {
+                description: 'Skill'
+              }
+            }
+          }
+        },
+
+        '/api/skill-file': {
+          get: {
+            operationId: 'getSkillFile',
+            summary: 'Load one text resource within a Skill.',
+            parameters: [
+              qVisibility,
+              qName,
+              {
+                name: 'path',
+                in: 'query',
+                required: true,
+                schema: {
+                  type: 'string'
+                }
+              },
+              qRef
+            ],
+            responses: {
+              '200': {
+                description: 'Skill file'
+              }
+            }
+          }
+        },
+
+        '/api/flows': {
+          get: {
+            operationId: 'listFlows',
+            summary: 'List saved Flows.',
+            parameters: [
+              qVisibility,
+              qRef
+            ],
+            responses: {
+              '200': {
+                description: 'Flow list'
+              }
+            }
+          }
+        },
+
+        '/api/search-flows': {
+          get: {
+            operationId: 'searchFlows',
+            summary: 'Search saved Flows independently from Skill discovery.',
+            parameters: qSearch,
+            responses: {
+              '200': {
+                description: 'Matching Flows.'
+              },
+              '400': {
+                description: 'Invalid query or visibility.'
+              }
+            }
+          }
+        },
+
+        '/api/flow': {
+          get: {
+            operationId: 'getFlow',
+            summary: "Load a Flow's FLOW.json.",
+            parameters: [
+              qVisibility,
+              qName,
+              qRef
+            ],
+            responses: {
+              '200': {
+                description: 'Flow'
+              }
+            }
+          }
+        },
+
+        '/api/suites': {
+          get: {
+            operationId: 'listSuites',
+            summary: 'List Suites.',
+            parameters: [
+              qVisibility,
+              qRef
+            ],
+            responses: {
+              '200': {
+                description: 'Suite list'
+              }
+            }
+          }
+        },
+
+        '/api/search-suites': {
+          get: {
+            operationId: 'searchSuites',
+            summary: 'Search Suites.',
+            parameters: qSearch,
+            responses: {
+              '200': {
+                description: 'Matching Suites.'
+              },
+              '400': {
+                description: 'Invalid query or visibility.'
+              }
+            }
+          }
+        },
+
+        '/api/suite': {
+          get: {
+            operationId: 'getSuite',
+            summary: "Load a Suite's SUITE.json.",
+            parameters: [
+              qVisibility,
+              qName,
+              qRef
+            ],
+            responses: {
+              '200': {
+                description: 'Suite'
+              }
+            }
+          }
+        },
+
+        '/api/skill-history': {
+          get: {
+            operationId: 'getSkillHistory',
+            summary: 'Get recent history for a Skill or Factory module.',
+            parameters: [
+              {
+                name: 'target',
+                in: 'query',
+                required: false,
+                schema: {
+                  type: 'string',
+                  enum: ['skill', 'flow', 'suite', 'factory'],
+                  default: 'skill'
+                }
+              },
+              {
+                name: 'visibility',
+                in: 'query',
+                required: false,
+                schema: {
+                  type: 'string',
+                  enum: ['public', 'private']
+                }
+              },
+              qName,
+              qRef
+            ],
+            responses: {
+              '200': {
+                description: 'History'
+              }
+            }
+          }
+        },
+
+        '/api/registry-history': {
+          get: {
+            operationId: 'getRegistryHistory',
+            summary: 'Get recent history for a Skill, Flow, Suite, or Factory module.',
+            parameters: [
+              {
+                name: 'target',
+                in: 'query',
+                required: true,
+                schema: {
+                  type: 'string',
+                  enum: ['skill', 'flow', 'suite', 'factory']
+                }
+              },
+              {
+                name: 'visibility',
+                in: 'query',
+                required: false,
+                schema: {
+                  type: 'string',
+                  enum: ['public', 'private']
+                }
+              },
+              qName,
+              qRef
+            ],
+            responses: {
+              '200': {
+                description: 'History'
+              }
+            }
+          }
+        },
+
+        '/api/create-branch': {
+          post: {
+            operationId: 'createChangeBranch',
+            summary: 'Create a change branch.',
+            requestBody: bodySchema(
+              {
+                target: registryTarget,
+                visibility: {
+                  type: 'string',
+                  enum: ['public', 'private']
+                },
+                branch: {
+                  type: 'string'
+                },
+                base: {
+                  type: 'string'
+                }
+              },
+              ['branch']
+            ),
+            responses: {
+              '200': {
+                description: 'Branch created'
+              }
+            }
+          }
+        },
+
+        '/api/write-files': {
+          post: {
+            operationId: 'writeRegistryFiles',
+            summary: 'Create or replace UTF-8 text files on a change branch.',
+            requestBody: bodySchema(
+              {
+                target: registryTarget,
+                visibility: {
+                  type: 'string',
+                  enum: ['public', 'private']
+                },
+                branch: {
+                  type: 'string'
+                },
+                message: {
+                  type: 'string'
+                },
+                files: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    required: ['path', 'content'],
+                    properties: {
+                      path: {
+                        type: 'string'
+                      },
+                      content: {
+                        type: 'string'
+                      }
+                    }
+                  }
+                }
+              },
+              ['branch', 'files']
+            ),
+            responses: {
+              '200': {
+                description: 'Files written'
+              }
+            }
+          }
+        },
+
+        '/api/delete-file': {
+          post: {
+            operationId: 'deleteRegistryFile',
+            summary: 'Delete one text file on a change branch.',
+            requestBody: bodySchema(
+              {
+                target: registryTarget,
+                visibility: {
+                  type: 'string',
+                  enum: ['public', 'private']
+                },
+                branch: {
+                  type: 'string'
+                },
+                path: {
+                  type: 'string'
+                },
+                message: {
+                  type: 'string'
+                }
+              },
+              ['branch', 'path']
+            ),
+            responses: {
+              '200': {
+                description: 'File deleted'
+              }
+            }
+          }
+        },
+
+        '/api/validate-skill': {
+          post: {
+            operationId: 'validateSkill',
+            summary:
+              'Validate proposed SKILL.md text and scan obvious secrets.',
+            requestBody: bodySchema(
+              {
+                skillMd: {
+                  type: 'string'
+                }
+              },
+              ['skillMd']
+            ),
+            responses: {
+              '200': {
+                description: 'Validation result'
+              }
+            }
+          }
+        },
+
+        '/api/validate-flow': {
+          post: {
+            operationId: 'validateFlow',
+            summary: 'Validate a proposed or stored FLOW.json.',
+            requestBody: bodySchema(
+              {
+                visibility: {
+                  type: 'string',
+                  enum: ['public', 'private']
+                },
+                name: {
+                  type: 'string'
+                },
+                ref: {
+                  type: 'string'
+                },
+                flowJson: {
+                  type: 'string'
+                }
+              },
+              ['visibility', 'name']
+            ),
+            responses: {
+              '200': {
+                description: 'Validation result'
+              }
+            }
+          }
+        },
+
+        '/api/validate-suite': {
+          post: {
+            operationId: 'validateSuite',
+            summary: 'Validate a proposed or stored SUITE.json.',
+            requestBody: bodySchema(
+              {
+                visibility: {
+                  type: 'string',
+                  enum: ['public', 'private']
+                },
+                name: {
+                  type: 'string'
+                },
+                ref: {
+                  type: 'string'
+                },
+                suiteJson: {
+                  type: 'string'
+                }
+              },
+              ['visibility', 'name']
+            ),
+            responses: {
+              '200': {
+                description: 'Validation result'
+              }
+            }
+          }
+        },
+
+        '/api/compare': {
+          get: {
+            operationId: 'compareChangeBranch',
+            summary: 'Compare a change branch against its base.',
+            parameters: [
+              {
+                name: 'target',
+                in: 'query',
+                required: false,
+                schema: registryTarget
+              },
+              {
+                name: 'visibility',
+                in: 'query',
+                required: false,
+                schema: {
+                  type: 'string',
+                  enum: ['public', 'private']
+                }
+              },
+              {
+                name: 'head',
+                in: 'query',
+                required: true,
+                schema: {
+                  type: 'string'
+                }
+              },
+              {
+                name: 'base',
+                in: 'query',
+                required: false,
+                schema: {
+                  type: 'string'
+                }
+              }
+            ],
+            responses: {
+              '200': {
+                description: 'Diff'
+              }
+            }
+          }
+        },
+
+        '/api/pull-request': {
+          post: {
+            operationId: 'openSkillPullRequest',
+            summary: 'Open a pull request from a prepared branch.',
+            requestBody: bodySchema(
+              {
+                target: registryTarget,
+                visibility: {
+                  type: 'string',
+                  enum: ['public', 'private']
+                },
+                head: {
+                  type: 'string'
+                },
+                base: {
+                  type: 'string'
+                },
+                title: {
+                  type: 'string'
+                },
+                body: {
+                  type: 'string'
+                }
+              },
+              ['head', 'title']
+            ),
+            responses: {
+              '200': {
+                description: 'Pull request opened'
+              }
+            }
+          }
+        }
+      },
+
+      components: {
+        schemas: {},
+        securitySchemes: {
+          bearerAuth: {
+            type: 'http',
+            scheme: 'bearer'
+          }
+        }
+      },
+
+      security: [
+        {
+          bearerAuth: []
+        }
+      ]
+    };
+
+    return json(schema);
   }
 };
 
-function query(name, required, schema) { return { name, in: 'query', required, schema }; }
-function get(operationId, summary, parameters = []) { return { get: { operationId, summary, parameters, responses: { '200': { description: 'OK' } } } }; }
-function post(operationId, summary, requestBody) { return { post: { operationId, summary, requestBody, responses: { '200': { description: 'OK' } } } }; }
-function body(properties, required = []) { return { required: true, content: { 'application/json': { schema: { type: 'object', properties, required } } } }; }
+function bodySchema(properties, required = []) {
+  return {
+    required: true,
+    content: {
+      'application/json': {
+        schema: {
+          type: 'object',
+          properties,
+          required
+        }
+      }
+    }
+  };
+}
