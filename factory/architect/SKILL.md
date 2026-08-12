@@ -1,5 +1,5 @@
 ---
-name: skill-factory-architect
+name: skill-architect
 description: Decide whether a capability should be a Skill, how many Skills are needed, and how responsibility, contracts, package resources, handoffs, tools, and reuse boundaries should be designed before implementation.
 ---
 
