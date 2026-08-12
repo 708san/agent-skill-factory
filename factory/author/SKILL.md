@@ -1,111 +1,44 @@
 ---
 name: skill-author
-description: Implement Agent Skill packages on non-main branches with correct registry paths, progressive disclosure, explicit contracts, appropriate references/scripts/assets/evals, validation, and minimal duplication.
+description: Implement Agent Registry Skill, Flow, and Suite packages on non-main branches with canonical paths, safe manifests, progressive disclosure, validation, eval coverage, and minimal duplication.
 ---
 
 # Mission
 
-Author complete Skill packages from an approved architecture. A Skill package is not synonymous with one SKILL.md file.
+Implement approved Registry architecture without changing object semantics or duplicating source-of-truth instructions.
 
-# Before writing
+# Canonical packages
 
-For a new Skill, confirm:
+- Skill: `skills/<name>/SKILL.md` with optional `references/`, `scripts/`, `assets/`, `evals/`.
+- Flow: `flows/<name>/FLOW.json` with optional `evals/`.
+- Suite: `suites/<name>/SUITE.json` with optional `evals/`.
 
-- target package path;
-- package structure;
-- what must remain in SKILL.md;
-- what belongs in references;
-- whether scripts are justified;
-- whether assets are justified;
-- what evals are required.
+Never nest Skills or Flows under Suites. Never write Registry objects at repository root.
 
-For an existing Skill, inspect before changing:
+# Skill authoring
 
-1. current `SKILL.md`;
-2. directory structure;
-3. references;
-4. scripts;
-5. assets;
-6. evals.
+Preserve existing Skill authoring rules: core workflow, triggers/non-triggers, contracts, quality gates, handoffs, failure handling, progressive disclosure, and package-local resources. Suite membership must not alter standalone Skill instructions.
 
-Do not recreate information that already exists in another package file.
+# Flow authoring
 
-# Registry path invariant
+Use JSON. A v1 Flow manifest must identify itself as `kind: "flow"`, `schema_version: 1`, match directory/name, and define a DAG of `exact_skill` or `capability` steps.
 
-Skill packages must live under:
+Each step must define id, dependencies, boolean required status, declarative condition when needed, input handoff, and expected outputs. Handoffs reference declared Flow inputs or declared outputs of dependency steps. Do not copy Skill body text, Skill-specific prompts, or detailed Skill procedure into the Flow.
 
-`skills/<skill-name>/`
+Exact Skill steps are pins. Do not add implicit substitutions. Capability steps carry a discovery query and may permit dynamic compose when the design requires it. Do not author subflow references in v1.
 
-Required:
+# Suite authoring
 
-`skills/<skill-name>/SKILL.md`
+Use JSON. A v1 Suite manifest must identify itself as `kind: "suite"`, `schema_version: 1`, match directory/name, and reference member Skills/Flows without ownership. Optional policies, quality gates, and artifact-contract references are context-scoped and must not be described as globally injected member behavior.
 
-Optional:
+# Visibility and paths
 
-- `skills/<skill-name>/references/`
-- `skills/<skill-name>/scripts/`
-- `skills/<skill-name>/assets/`
-- `skills/<skill-name>/evals/`
-
-Never write `<skill-name>/SKILL.md` at repository root. Reject absolute paths, traversal, and accidental writes into another Skill directory.
-
-After writing, inspect the diff and confirm all intended Skill-package changes are under the expected `skills/<skill-name>/` root.
-
-# SKILL.md core
-
-Keep always-needed execution material in SKILL.md:
-
-- trigger and non-trigger;
-- responsibility;
-- core workflow;
-- critical decision rules;
-- input contract;
-- output contract;
-- quality gate;
-- resource loading rules;
-- failure handling;
-- Definition of Done.
-
-For composable Skills, make inputs/outputs and handoff expectations sufficiently explicit for loose coupling. Do not require one named upstream Skill when an input contract is enough.
-
-# Progressive Disclosure
-
-Load `references/progressive-disclosure.md` when the package contains substantial conditional detail or SKILL.md approaches roughly 150–200 lines.
-
-Consider moving out:
-
-- long rubrics and pattern lists;
-- medium- or industry-specific guidance;
-- detailed checklists;
-- case-specific knowledge;
-- long good/bad examples;
-- long explanations of core rules.
-
-Do not split mechanically by line count. Do not move essential judgment out if the core Skill can no longer execute straightforward requests without loading references.
-
-Every reference must have a clear loading condition in SKILL.md. Avoid tiny overlapping references and unused files.
-
-# Resource boundaries
-
-Use:
-
-- `references/` for conditional knowledge;
-- `scripts/` for deterministic or repeated processing, validation, format checks, or static analysis;
-- `assets/` for templates, images, reusable source files, or reference visuals;
-- `evals/` for positive, implicit, explicit, negative, near-miss, known-good, known-bad, and regression behavior as relevant.
+Public Flow/Suite manifests may reference public objects only. Private objects may explicitly reference public or private objects. Use the generalized Registry path guard for writes/deletes; preserve legacy Skill path compatibility.
 
 # Change workflow
 
-Use a non-main branch. Perform write → validate → diff, then hand the completed package to reviewer. Do not create a PR unless the user explicitly requested or authorized it.
+Use a non-main branch. Perform write → validation/secret scan → diff inspection → reviewer. Do not create a PR unless requested or authorized.
 
 # Definition of done
 
-Authoring is complete when:
-
-- package path is canonical;
-- SKILL.md contains the core and only the core;
-- conditional resources are structured without duplication;
-- eval coverage includes realistic triggers and regressions;
-- validation and secret scan pass;
-- diff stays within intended package boundaries;
-- reviewer receives the complete package, not only SKILL.md.
+Authoring is complete when paths are canonical, JSON parses, validators pass, exact/capability semantics are preserved, no Skill How is duplicated into a Flow, Suite membership is non-owning, security boundaries hold, evals cover routing/integrity regressions, and reviewer receives the complete diff.
