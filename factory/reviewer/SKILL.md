@@ -1,74 +1,88 @@
 ---
 name: skill-reviewer
-description: Audit completed Agent Skill packages and Factory changes for correctness, registry placement, progressive disclosure, boundaries, contracts, eval coverage, security, validation, and regression risk before PR or publication.
+description: Audit completed Agent Registry and Factory changes for Skill/Flow/Suite correctness, routing compatibility, placement, contracts, eval coverage, security, validation, and regression risk before PR or publication.
 ---
 
 # Mission
 
-Review the complete changed package and diff, not only SKILL.md. Report blocking issues clearly and do not modify files unless the user requested refactor/change mode.
+Review the complete changed package and diff. Report blocking issues clearly and distinguish actual failures from E2E checks that were not executable in the current environment.
 
-# Required Skill package checks
+# Skill compatibility checks
 
-For a completed Skill, verify:
+Verify:
 
-## Placement
+- Skills remain independent first-class objects under `skills/<name>/`;
+- exact Skill invocation semantics are unchanged;
+- `searchSkills` discovery/scoring is not polluted by Flow/Suite search;
+- recommend behavior remains Skill-compatible;
+- standalone member Skill execution receives no Suite policy injection;
+- one Skill can be referenced by multiple Suites;
+- existing dynamic compose remains available and is not replaced by Flow routing.
 
-- all package files are under `skills/<skill-name>/`;
-- required `skills/<skill-name>/SKILL.md` exists;
-- no root-level `<skill-name>/` package remains;
-- no absolute path, traversal, or accidental cross-Skill write exists.
+Apply existing Skill placement, progressive disclosure, boundary, contract, eval, and safety checks.
 
-## Progressive Disclosure
+# Flow checks
 
-- SKILL.md contains the core workflow and critical decisions;
-- long rubrics, pattern lists, medium/industry guidance, detailed checklists, and long examples are externalized when conditional;
-- essential decision rules have not been moved out so aggressively that ordinary execution requires every reference;
-- SKILL.md explicitly says when each reference should be loaded;
-- no unused or duplicative reference exists;
-- a SKILL.md above roughly 150–200 lines received an explicit disclosure review rather than an automatic split.
+Verify:
 
-## Skill boundary
+- canonical `flows/<name>/FLOW.json` placement and name match;
+- valid v1 JSON/schema and DAG;
+- unique step ids, existing dependencies, and no cycles;
+- exact Skill references exist and are never silently substituted;
+- capability definitions are valid and remain dynamically resolvable;
+- handoff sources and expected outputs are consistent;
+- duplicate/conflicting outputs are rejected;
+- conditions are limited to declarative `when` equality checks;
+- completion requires all applicable required steps;
+- excluding a required applicable step prevents full success;
+- Flow→Flow recursion is rejected in v1;
+- Flow contains orchestration semantics, not copied Skill How/prompt text;
+- public Flow cannot reference private objects.
 
-- responsibility is coherent and not overloaded with SEO, fact-checking, LLMO, article planning, or other unrelated capabilities unless they are genuinely the same reusable responsibility;
-- a natural core workflow has not been fragmented into unnecessary micro-Skills;
-- trigger and non-trigger are clear.
+# Suite checks
 
-## Contract and composition readiness
+Verify:
 
-Check when relevant:
+- canonical `suites/<name>/SUITE.json` placement and name match;
+- member Skill/Flow references exist and contain no duplicates;
+- membership is non-owning and reusable across Suites;
+- policy/gates/contracts are applied only in explicit Suite/Flow context;
+- Suite is used as discovery scope rather than a normal executable target;
+- public Suite cannot reference private objects.
 
-- responsibility;
-- inputs and outputs;
-- quality gate;
-- handoff_in / handoff_out semantics;
-- failure modes;
-- loose coupling to upstream/downstream Skills.
+# Routing regression checks
 
-## Evals
+Explicitly review these outcomes:
 
-Expect behavior coverage appropriate to the Skill, including:
-
-- positive trigger;
-- implicit trigger when natural language invocation matters;
-- explicit trigger;
-- negative trigger;
-- near-miss;
-- known-good;
-- known-bad;
-- regressions for prior failures.
-
-## Safety and repository policy
-
-- validateSkill passes;
-- secret scan passes;
-- public/private boundary is preserved;
-- use-only work caused no repository mutation;
-- PR creation matches explicit user authorization.
+1. existing exact Skill invocation unchanged;
+2. existing discover Skill unchanged;
+3. existing recommend unchanged;
+4. existing compose unchanged;
+5. local/single-responsibility requests are not absorbed by Flows;
+6. strongly matching known end-to-end requests may select a Flow;
+7. uncovered multi-responsibility requests use compose;
+8. standalone Suite-member Skill receives no Suite policy;
+9. one Skill may belong to multiple Suites;
+10. exact Flow step is not substituted;
+11. capability step may resolve dynamically;
+12. nonexistent exact Skill rejected;
+13. dependency cycle rejected;
+14. public Flow/Suite→private rejected;
+15. optional condition behavior is correct;
+16. excluded required step prevents full-success claim;
+17. `searchSkills` results/scoring have no unnecessary regression;
+18. Flow/Suite read/search/write/validate/history paths exist;
+19. legacy API routes and `target=skill` alias remain available;
+20. public/private repository boundary remains intact.
 
 # Factory change review
 
-For runtime/Factory changes, verify existing modes and routes remain available, new behavior is covered by evals, implementation and instructions agree, and code guards enforce structural invariants when practical.
+Check implementation and instructions agree, generalized Registry path guards cover write and delete without removing the legacy Skill path API, JSON parsing adds no unnecessary dependency, and OpenAPI sources describe the same routes/aliases.
+
+# Safety and workflow
+
+Require non-main branch, validation, secret scan, diff inspection, and reviewer pass. PR creation must match explicit authorization.
 
 # Decision
 
-Return PASS only when no blocking correctness, security, placement, boundary, or regression issue remains. Distinguish unexecuted E2E checks from actual failures.
+Return PASS only when no blocking correctness, security, placement, boundary, routing, or regression issue remains. State unexecuted E2E checks separately from failures.
