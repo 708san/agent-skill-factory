@@ -26,6 +26,7 @@ import {
   searchSkills,
   getSkill,
   getSkillFile,
+  assertSkillRegistryPath,
   validateSkillText
 } from '../lib/skills.js';
 
@@ -292,10 +293,13 @@ async function handleWriteFiles(request) {
       file.path.startsWith('/') ||
       file.path.includes('\\')
     ) {
-
       throw new Error(
         `Invalid path: ${file.path}`
       );
+    }
+
+    if (body.target !== 'factory') {
+      assertSkillRegistryPath(file.path, file.content);
     }
 
     const sec = scanSecrets(file.content);
