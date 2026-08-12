@@ -1,174 +1,134 @@
 ---
 name: skill-factory-orchestrator
-description: Route Agent Skill Factory requests across create, use, audit, refactor, split, merge, publish, and rollback; support exact use, implicit discovery, recommendation, and minimal multi-Skill composition with progressive disclosure.
+description: Route Agent Skill Factory requests across create, use, audit, refactor, split, merge, publish, and rollback; preserve exact Skill use, discovery, recommendation, dynamic composition, and first-class saved Flows and Suites.
 ---
 
 # Mission
 
-Coordinate the Skill Factory without absorbing specialist responsibilities. GitHub-backed Factory modules and Agent Skills are the source of truth.
+Coordinate the Skill Factory without absorbing specialist responsibilities. GitHub-backed Factory modules and Registry objects are the source of truth.
+
+# Registry concepts
+
+Keep these meanings separate:
+
+- Skill = standalone reusable capability. Skills remain global first-class Registry objects.
+- Flow = reusable saved execution plan for a known task. A Flow references Skills; it does not contain their implementation instructions.
+- Suite = non-owning relationship, discovery scope, and optional shared policy for related Skills and Flows. A Suite is not normally executable.
+- compose = runtime-generated dynamic execution plan for an unknown or insufficiently covered multi-responsibility task.
+
+Never move a Skill into a Suite, inject Suite policy into standalone Skill use, or treat Suite membership as ownership. One Skill or Flow may belong to multiple Suites.
 
 # Modes
 
-- `use`: select and execute existing Skills without modifying repositories.
-- `create`: design and implement one or more new Skills.
+- `use`: select and execute existing Skills or Flows without modifying repositories.
+- `create`: design and implement Registry or Factory objects.
 - `audit`: evaluate without changing files.
-- `refactor`: improve an existing Skill while preserving valid behavior.
-- `split`: split an oversized Skill when responsibilities are independently reusable.
-- `merge`: combine genuinely overlapping Skills when one coherent responsibility remains.
+- `refactor`: improve an existing object while preserving valid behavior.
+- `split`: split an oversized responsibility or package when independently reusable boundaries justify it.
+- `merge`: combine genuinely overlapping objects when one coherent responsibility remains.
 - `publish`: create a public-safe variant from private source material.
 - `rollback`: restore a previous known-good version through repository history.
 
 # Routing
 
-1. Determine the mode from the user's request; infer it when obvious.
-2. For `use`, apply the runtime routing below and never write to a repository.
-3. For `audit`, load reviewer and the target Skill/package.
+1. Determine the mode.
+2. For `use`, apply runtime routing below and never write to a repository.
+3. For `audit`, load reviewer and the target package/object.
 4. For `create`, load architect → author → reviewer.
-5. For `refactor`, load reviewer → architect only if boundaries change → author → reviewer.
+5. For `refactor`, load reviewer → architect if boundaries change → author → reviewer.
 6. For `split` or `merge`, load architect → author → reviewer.
 7. For `publish`, load publisher → reviewer.
-8. For `rollback`, use repository operations and validate the restored state.
+8. For `rollback`, use repository history and validate the restored state.
 
 # Use runtime
 
-Classify a use request as `exact`, `discover`, `recommend`, or `compose`. Ordinary/meta questions stay outside Skill use.
+Classify concrete use as `exact`, `flow`, `discover`, `recommend`, or `compose`. Ordinary/meta questions stay outside Registry execution.
 
-## A. exact
+## A. exact Skill
 
-Use when the user explicitly names a Skill, including `$skill-name`, `skill-nameを使って`, or an explicit sequence such as `$skill-a → $skill-b`.
+Existing exact Skill syntax is unchanged. `$skill-name`, `skill-nameを使って`, and explicit Skill sequences still mean Skills.
 
 For one named Skill:
 
-1. Resolve public/private visibility. If the same name exists in both, keep visibility explicit.
-2. Call `getSkill` directly. Do not search first unless visibility resolution requires it.
-3. Call `getSkillFile` only for files the current `SKILL.md` requires for this task.
-4. Execute the Skill.
+1. Resolve visibility.
+2. Call `getSkill` directly; do not search first unless visibility resolution requires it.
+3. Load only files required by the current SKILL.md.
+4. Execute the Skill exactly as before.
 
-For multiple explicitly named Skills, verify existence, visibility, user-specified order, and input/output compatibility. Treat the request as exact composition and follow `references/composition-runtime.md` for handoff rules. Do not add extra Skills unless required to satisfy the user's goal and constraints.
+Suite membership must not change standalone Skill behavior or inject Suite policy.
 
-## B. discover
+## B. explicit or implicit Flow
 
-Use when the user did not name a Skill but is asking Agent Skill Factory to perform a concrete task—such as editing, creating, analyzing, transforming, organizing, planning, reviewing, or producing an artifact—and an existing Skill could plausibly improve task-specific execution.
+Use `$flow:<flow-name>` for explicit Flow invocation so it cannot collide with `$skill-name`.
 
-The user does not need to say “Skill”, “適切なSkill”, or “使えるSkill”. Being invoked as Agent Skill Factory plus a concrete execution request is sufficient to consider discovery.
+For implicit routing, consider a Flow only when the request is a known end-to-end task and a registered Flow strongly matches the whole requested outcome. Do not route a local modification or single responsibility into a Flow merely because a matching Flow exists.
 
-Examples that should trigger discovery when a matching Skill plausibly exists:
+Routing priority is based on request granularity, not object existence:
 
-- `この文章をAIっぽくなくしたい。`
-- `このLPをもっと訴求力のある文章にしたい。`
-- `この調査結果を比較表に整理して。`
-- `広告画像の構図を考えて。`
+- local / single responsibility → Skill discovery;
+- known end-to-end task with a strong matching Flow → Flow;
+- multi-responsibility task without an adequate Flow → compose.
 
-Procedure:
+Flow search is separate from Skill search. Do not change or blend `searchSkills` scoring/results with Flow results.
 
-1. Call `searchSkills` with a task-focused query and an explicit visibility scope.
-2. Evaluate candidates by responsibility, description, optional metadata, user constraints, and required output.
+When executing a Flow:
+
+1. load and validate the Flow;
+2. evaluate only declarative `condition.when` equality conditions;
+3. honor dependencies and handoff references;
+4. for `exact_skill`, call the named Skill directly and never silently substitute another Skill;
+5. if an exact Skill is missing or incompatible, fail that Flow step and do not claim full Flow success;
+6. for `capability`, dynamically resolve the requested capability via Skill discovery, and use compose only when the capability step explicitly permits/needs multi-Skill resolution;
+7. required applicable steps must complete for full success; user exclusion of a required applicable step prevents a full-success claim;
+8. optional or condition-false steps may be skipped without invalidating completion when the manifest permits it.
+
+Flow-to-Flow recursion is not supported in v1. Use capability steps plus compose for dynamic compound work.
+
+## C. discover Skill
+
+Use when the user did not name a Skill and asks Factory to perform a concrete local or single-responsibility task for which a Skill could improve execution.
+
+1. Call `searchSkills` with a task-focused query and explicit visibility.
+2. Evaluate candidates by responsibility, metadata, user constraints, and output.
 3. Prefer one Skill when one coherent responsibility can complete the task.
-4. If one Skill is clearly best, call `getSkill` without unnecessary confirmation.
-5. Load only the selected Skill's required references/resources and execute it.
-6. If the goal genuinely requires multiple independently reusable responsibilities, switch to `compose`.
+4. If clearly best, call `getSkill` without unnecessary confirmation.
+5. Load only required resources and execute it.
+6. If the goal genuinely requires multiple independent responsibilities and no adequate Flow applies, switch to compose.
 
-Do not mechanically search for every request. Use ordinary/meta routing for explanation-only requests.
+## D. recommend
 
-## C. recommend
+When the user wants candidates only, call the relevant search operation and present candidates without loading/executing them. Skill recommendation remains Skill-only unless the user asks about Flows or end-to-end plans.
 
-Use when the user asks only for candidates or availability and does not want execution yet.
+## E. compose
 
-Examples:
+Compose remains runtime-generated and dynamic. Use it when multiple Skills create clear value, one Skill is insufficient, and no adequate saved Flow covers the requested end-to-end task.
 
-- `文章改善に使えるSkillある？`
-- `競合調査向けのSkillを教えて。`
-- `今回はまだ実行しなくていい。`
+Before execution, form an internal Skill Execution Plan containing goal, selected Skills, order, responsibilities, inputs, expected outputs, handoffs, dependencies, and completion condition. Search the current Registry and select the minimum Skill set needed. Load `references/composition-runtime.md` when composition is selected.
 
-Procedure:
+# Suite scope
 
-1. Call `searchSkills`.
-2. Present the best candidates with their intended use and visibility.
-3. Do not call `getSkill` or execute a Skill unless the user asks to proceed.
+A Suite is a discovery scope, not an execution target. When a Suite is explicitly named:
 
-## D. compose
+1. load the Suite;
+2. restrict relevant Skill/Flow discovery to its referenced members;
+3. apply Suite policies, quality gates, or artifact contracts only inside that explicit Suite/Flow context;
+4. never persist or inject Suite policy into standalone Skill execution.
 
-Use only when multiple Skills create clear value and one Skill cannot adequately complete the user's final goal.
-
-Compose is appropriate when one or more of the following apply:
-
-- multiple independent specialist judgments are required;
-- multiple independently useful outputs are required;
-- Skill A output is required input to Skill B;
-- responsibilities are independently reusable;
-- separating responsibilities materially improves quality or reuse.
-
-Do not compose merely because a workflow has multiple steps. Prefer one Skill when its core workflow naturally includes those steps, such as `review → rewrite` inside `human-writing-review`.
-
-Before execution, form an internal Skill Execution Plan containing:
-
-- user goal
-- selected Skills
-- execution order
-- each Skill responsibility
-- input for each Skill
-- expected output
-- handoff
-- dependencies
-- completion condition
-
-Search the current Registry and select the minimum Skill set needed. Do not use a Skill simply because it is available.
-
-Load `references/composition-runtime.md` when composition is selected.
-
-# Ordinary / meta routing
-
-Do not search Skills for explanation-only questions, including:
-
-- general knowledge questions;
-- questions about how Factory works;
-- explanations of `searchSkills`, `getSkill`, repository management, or Factory structure;
-- conceptual questions that do not ask Factory to perform a concrete task.
-
-Examples:
-
-- `AIっぽい文章とはどういう文章？`
-- `searchSkillsはどういう仕組み？`
-- `Factoryのrepository構造を教えて。`
+Public Suite/Flow objects may reference public objects only. Private Suite/Flow objects may explicitly reference public or private objects.
 
 # User control
 
-Respect explicit user constraints whenever compatible with existence, visibility, safety, and required inputs. Examples include:
-
-- `$skill-aだけ使って`
-- `画像生成はまだしないで`
-- `構図までで止めて`
-- `このSkillは使わないで`
-- `$skill-a → $skill-b の順で使って`
-
-Do not silently expand scope beyond those constraints.
+Respect explicit user constraints, including exact Skill/Flow selection, ordering, exclusions, and stop points. Do not silently expand scope. Exact Flow steps are semantic pins, not suggestions.
 
 # Repository policy
 
-- GitHub files returned by Actions are authoritative; do not embed fixed copies of Skill bodies.
-- `use` mode is read-only. Never branch, write, delete, publish, or open a PR merely to use a Skill.
-- If use reveals an improvement opportunity, mention it only as a suggestion unless the user requests a change.
-- Change modes must use a non-main branch and perform branch → write → validate → diff → reviewer.
-- Never write directly to `main`.
-- Create a pull request only when the user explicitly requests PR creation or explicitly authorizes proceeding through PR when acceptable.
-- Public/private repositories are security boundaries. Multi-Skill use may combine public and private Skills read-only, but private content must never be written to public storage outside the publisher workflow.
-
-# Progressive disclosure
-
-Load resources in this order and only as needed:
-
-orchestrator → required Factory module(s) → selected Skill → files required by that Skill → compact handoff → next selected Skill.
-
-Do not preload all Factory modules, all Skills, all SKILL.md files, or all references.
+- GitHub files returned by Actions are authoritative.
+- `use` mode is read-only.
+- Change modes use a non-main branch and branch → write → validate → diff → reviewer.
+- Never write directly to main.
+- Create a PR only when explicitly requested or authorized.
+- Public/private repositories are security boundaries; public manifests must not leak private Registry names or repository information.
 
 # Definition of done
 
-A routed request is complete only when:
-
-- the correct mode and use path were selected;
-- implicit concrete-task discovery was considered when appropriate;
-- ordinary/meta questions avoided unnecessary discovery;
-- composition used the smallest sufficient Skill set;
-- user constraints and public/private boundaries were preserved;
-- use mode performed no repository mutation;
-- change modes completed validation, diff, and reviewer checks before optional PR creation.
+A routed request is complete only when exact Skill compatibility is preserved, Flow routing is granularity-aware, Suite policy is scoped, compose remains dynamic for uncovered multi-responsibility work, user constraints are preserved, and change-mode validation/diff/review are complete.
