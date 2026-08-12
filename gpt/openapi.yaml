@@ -2,98 +2,235 @@ openapi: 3.1.0
 info:
   title: Agent Skill Factory Registry API
   version: 0.5.0
-  description: GitHub-backed API for first-class Skills, Flows, Suites, and Factory modules.
+  description: Narrow GitHub-backed API for a web-only Agent Skill Factory, extended with first-class Flow and Suite registry objects.
 servers:
   - url: https://YOUR-VERCEL-DOMAIN.vercel.app
 paths:
   /api/health:
-    get: {operationId: healthCheck, summary: Check the Factory API., responses: {'200': {description: OK}}}
+    get:
+      operationId: healthCheck
+      summary: Check whether the Factory API is running.
+      responses:
+        '200': {description: OK}
   /api/factory-module:
     get:
       operationId: getFactoryModule
-      summary: Load a current Factory module.
+      summary: Load the current SKILL.md for a Factory module.
       parameters:
-        - {in: query, name: name, required: true, schema: {type: string, enum: [orchestrator, architect, author, reviewer, publisher]}}
-        - {in: query, name: ref, required: false, schema: {type: string}}
-      responses: {'200': {description: OK}}
+        - in: query
+          name: name
+          required: true
+          schema: {type: string, enum: [orchestrator, architect, author, reviewer, publisher]}
+        - in: query
+          name: ref
+          required: false
+          schema: {type: string}
+      responses:
+        '200': {description: Factory module}
   /api/factory-file:
     get:
       operationId: getFactoryFile
-      summary: Read one UTF-8 source file from the Factory repository.
+      summary: Read one UTF-8 source file from the Agent Skill Factory repository.
       parameters:
-        - {in: query, name: path, required: true, schema: {type: string}}
-        - {in: query, name: ref, required: false, schema: {type: string}}
-      responses: {'200': {description: OK}}
+        - in: query
+          name: path
+          required: true
+          description: Repository-relative path such as api/[...route].js, lib/skills.js, or gpt/INSTRUCTIONS.md.
+          schema: {type: string}
+        - in: query
+          name: ref
+          required: false
+          description: Optional Git ref such as main or a feature branch.
+          schema: {type: string}
+      responses:
+        '200': {description: Factory source file}
+        '400': {description: Invalid path or request}
+        '401': {description: Unauthorized}
   /api/skills:
     get:
       operationId: listSkills
-      summary: List Skills.
-      parameters: &listParams
-        - {in: query, name: visibility, required: true, schema: {type: string, enum: [public, private]}}
-        - {in: query, name: ref, required: false, schema: {type: string}}
-      responses: {'200': {description: OK}}
+      summary: List public or private Skills.
+      parameters:
+        - in: query
+          name: visibility
+          required: true
+          schema: {type: string, enum: [public, private]}
+        - in: query
+          name: ref
+          required: false
+          schema: {type: string}
+      responses:
+        '200': {description: Skill names}
   /api/search-skills:
     get:
       operationId: searchSkills
       summary: Search Skills by name and SKILL.md metadata.
       parameters: &searchParams
-        - {in: query, name: query, required: true, schema: {type: string}}
-        - {in: query, name: visibility, required: true, schema: {type: string, enum: [public, private]}}
-        - {in: query, name: limit, required: false, schema: {type: integer, minimum: 1, maximum: 20, default: 5}}
-        - {in: query, name: ref, required: false, schema: {type: string}}
-      responses: {'200': {description: OK}}
+        - in: query
+          name: query
+          required: true
+          schema: {type: string}
+        - in: query
+          name: visibility
+          required: true
+          schema: {type: string, enum: [public, private]}
+        - in: query
+          name: limit
+          required: false
+          schema: {type: integer, minimum: 1, maximum: 20, default: 5}
+        - in: query
+          name: ref
+          required: false
+          schema: {type: string}
+      responses:
+        '200': {description: Matching Skills with name, description, visibility, and optional metadata.}
+        '400': {description: Invalid query or visibility.}
   /api/skill:
     get:
       operationId: getSkill
-      summary: Load a Skill's SKILL.md.
+      summary: Load a Skill's current SKILL.md.
       parameters: &getParams
-        - {in: query, name: visibility, required: true, schema: {type: string, enum: [public, private]}}
-        - {in: query, name: name, required: true, schema: {type: string}}
-        - {in: query, name: ref, required: false, schema: {type: string}}
-      responses: {'200': {description: OK}}
+        - in: query
+          name: visibility
+          required: true
+          schema: {type: string, enum: [public, private]}
+        - in: query
+          name: name
+          required: true
+          schema: {type: string}
+        - in: query
+          name: ref
+          required: false
+          schema: {type: string}
+      responses:
+        '200': {description: Skill}
   /api/skill-file:
     get:
       operationId: getSkillFile
-      summary: Load one text resource within a Skill.
+      summary: Load one text resource inside a Skill directory.
       parameters:
-        - {in: query, name: visibility, required: true, schema: {type: string, enum: [public, private]}}
-        - {in: query, name: name, required: true, schema: {type: string}}
-        - {in: query, name: path, required: true, schema: {type: string}}
-        - {in: query, name: ref, required: false, schema: {type: string}}
-      responses: {'200': {description: OK}}
+        - in: query
+          name: visibility
+          required: true
+          schema: {type: string, enum: [public, private]}
+        - in: query
+          name: name
+          required: true
+          schema: {type: string}
+        - in: query
+          name: path
+          required: true
+          description: Path relative to the Skill root, such as references/rubric.md.
+          schema: {type: string}
+        - in: query
+          name: ref
+          required: false
+          schema: {type: string}
+      responses:
+        '200': {description: Skill resource}
   /api/flows:
-    get: {operationId: listFlows, summary: List saved Flows., parameters: *listParams, responses: {'200': {description: OK}}}
+    get:
+      operationId: listFlows
+      summary: List saved Flows.
+      parameters: &listParams
+        - in: query
+          name: visibility
+          required: true
+          schema: {type: string, enum: [public, private]}
+        - in: query
+          name: ref
+          required: false
+          schema: {type: string}
+      responses:
+        '200': {description: Flow names}
   /api/search-flows:
-    get: {operationId: searchFlows, summary: Search saved Flows independently from Skill discovery., parameters: *searchParams, responses: {'200': {description: OK}}}
+    get:
+      operationId: searchFlows
+      summary: Search saved Flows independently from Skill discovery.
+      parameters: *searchParams
+      responses:
+        '200': {description: Matching Flows}
+        '400': {description: Invalid query or visibility.}
   /api/flow:
-    get: {operationId: getFlow, summary: Load a Flow's FLOW.json., parameters: *getParams, responses: {'200': {description: OK}}}
+    get:
+      operationId: getFlow
+      summary: Load a Flow's FLOW.json.
+      parameters: *getParams
+      responses:
+        '200': {description: Flow}
   /api/suites:
-    get: {operationId: listSuites, summary: List Suites., parameters: *listParams, responses: {'200': {description: OK}}}
+    get:
+      operationId: listSuites
+      summary: List Suites.
+      parameters: *listParams
+      responses:
+        '200': {description: Suite names}
   /api/search-suites:
-    get: {operationId: searchSuites, summary: Search Suites., parameters: *searchParams, responses: {'200': {description: OK}}}
+    get:
+      operationId: searchSuites
+      summary: Search Suites.
+      parameters: *searchParams
+      responses:
+        '200': {description: Matching Suites}
+        '400': {description: Invalid query or visibility.}
   /api/suite:
-    get: {operationId: getSuite, summary: Load a Suite's SUITE.json., parameters: *getParams, responses: {'200': {description: OK}}}
+    get:
+      operationId: getSuite
+      summary: Load a Suite's SUITE.json.
+      parameters: *getParams
+      responses:
+        '200': {description: Suite}
   /api/skill-history:
     get:
       operationId: getSkillHistory
-      summary: Legacy-compatible history endpoint for a Skill, Flow, Suite, or Factory module.
+      summary: Get recent commits touching a Skill or Factory module.
       parameters: &historyParams
-        - {in: query, name: target, required: false, schema: {type: string, enum: [skill, flow, suite, factory], default: skill}}
-        - {in: query, name: visibility, required: false, schema: {type: string, enum: [public, private]}}
-        - {in: query, name: name, required: true, schema: {type: string}}
-        - {in: query, name: ref, required: false, schema: {type: string}}
-      responses: {'200': {description: OK}}
+        - in: query
+          name: target
+          required: false
+          schema: {type: string, enum: [skill, flow, suite, factory], default: skill}
+        - in: query
+          name: visibility
+          required: false
+          schema: {type: string, enum: [public, private]}
+        - in: query
+          name: name
+          required: true
+          schema: {type: string}
+        - in: query
+          name: ref
+          required: false
+          schema: {type: string}
+      responses:
+        '200': {description: Commit history}
   /api/registry-history:
     get:
       operationId: getRegistryHistory
-      summary: Get history for a Skill, Flow, Suite, or Factory module.
-      parameters: *historyParams
-      responses: {'200': {description: OK}}
+      summary: Get recent commits touching a Skill, Flow, Suite, or Factory module.
+      parameters:
+        - in: query
+          name: target
+          required: true
+          schema: {type: string, enum: [skill, flow, suite, factory]}
+        - in: query
+          name: visibility
+          required: false
+          schema: {type: string, enum: [public, private]}
+        - in: query
+          name: name
+          required: true
+          schema: {type: string}
+        - in: query
+          name: ref
+          required: false
+          schema: {type: string}
+      responses:
+        '200': {description: Commit history}
   /api/create-branch:
     post:
       operationId: createChangeBranch
-      summary: Create a change branch.
-      requestBody: &branchBody
+      summary: Create a change branch in the Factory, public Skills, or private Skills repository.
+      requestBody:
         required: true
         content:
           application/json:
@@ -104,12 +241,13 @@ paths:
                 target: {type: string, enum: [skill, registry, factory], default: skill}
                 visibility: {type: string, enum: [public, private]}
                 branch: {type: string}
-                base: {type: string}
-      responses: {'200': {description: OK}}
+                base: {type: string, default: main}
+      responses:
+        '200': {description: Branch created}
   /api/write-files:
     post:
       operationId: writeRegistryFiles
-      summary: Create or replace UTF-8 text files on a change branch.
+      summary: Create or replace UTF-8 text files on an existing change branch.
       requestBody:
         required: true
         content:
@@ -128,12 +266,15 @@ paths:
                   items:
                     type: object
                     required: [path, content]
-                    properties: {path: {type: string}, content: {type: string}}
-      responses: {'200': {description: OK}}
+                    properties:
+                      path: {type: string}
+                      content: {type: string}
+      responses:
+        '200': {description: Files written}
   /api/delete-file:
     post:
       operationId: deleteRegistryFile
-      summary: Delete one Registry text file on a change branch.
+      summary: Delete one text file from an existing change branch.
       requestBody:
         required: true
         content:
@@ -147,15 +288,23 @@ paths:
                 branch: {type: string}
                 path: {type: string}
                 message: {type: string}
-      responses: {'200': {description: OK}}
+      responses:
+        '200': {description: File deleted}
   /api/validate-skill:
     post:
       operationId: validateSkill
-      summary: Validate proposed SKILL.md text and scan obvious secrets.
+      summary: Validate proposed SKILL.md text and scan for obvious secrets before writing.
       requestBody:
         required: true
-        content: {application/json: {schema: {type: object, required: [skillMd], properties: {skillMd: {type: string}}}}}
-      responses: {'200': {description: OK}}
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [skillMd]
+              properties:
+                skillMd: {type: string}
+      responses:
+        '200': {description: Validation result}
   /api/validate-flow:
     post:
       operationId: validateFlow
@@ -172,7 +321,8 @@ paths:
                 name: {type: string}
                 ref: {type: string}
                 flowJson: {type: string}
-      responses: {'200': {description: OK}}
+      responses:
+        '200': {description: Validation result}
   /api/validate-suite:
     post:
       operationId: validateSuite
@@ -189,21 +339,35 @@ paths:
                 name: {type: string}
                 ref: {type: string}
                 suiteJson: {type: string}
-      responses: {'200': {description: OK}}
+      responses:
+        '200': {description: Validation result}
   /api/compare:
     get:
       operationId: compareChangeBranch
-      summary: Compare a change branch against its base.
+      summary: Compare a change branch against its base and return changed files and patches.
       parameters:
-        - {in: query, name: target, required: false, schema: {type: string, enum: [skill, registry, factory], default: skill}}
-        - {in: query, name: visibility, required: false, schema: {type: string, enum: [public, private]}}
-        - {in: query, name: head, required: true, schema: {type: string}}
-        - {in: query, name: base, required: false, schema: {type: string}}
-      responses: {'200': {description: OK}}
+        - in: query
+          name: target
+          required: false
+          schema: {type: string, enum: [skill, registry, factory], default: skill}
+        - in: query
+          name: visibility
+          required: false
+          schema: {type: string, enum: [public, private]}
+        - in: query
+          name: head
+          required: true
+          schema: {type: string}
+        - in: query
+          name: base
+          required: false
+          schema: {type: string, default: main}
+      responses:
+        '200': {description: Diff summary}
   /api/pull-request:
     post:
       operationId: openSkillPullRequest
-      summary: Open a pull request from a prepared branch.
+      summary: Open a pull request from a prepared change branch.
       requestBody:
         required: true
         content:
@@ -215,12 +379,15 @@ paths:
                 target: {type: string, enum: [skill, registry, factory], default: skill}
                 visibility: {type: string, enum: [public, private]}
                 head: {type: string}
-                base: {type: string}
+                base: {type: string, default: main}
                 title: {type: string}
                 body: {type: string}
-      responses: {'200': {description: OK}}
+      responses:
+        '200': {description: Pull request opened}
 components:
   securitySchemes:
-    bearerAuth: {type: http, scheme: bearer}
+    bearerAuth:
+      type: http
+      scheme: bearer
 security:
   - bearerAuth: []
