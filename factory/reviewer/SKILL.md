@@ -1,5 +1,5 @@
 ---
-name: skill-factory-reviewer
+name: skill-reviewer
 description: Audit completed Agent Skill packages and Factory changes for correctness, registry placement, progressive disclosure, boundaries, contracts, eval coverage, security, validation, and regression risk before PR or publication.
 ---
 
