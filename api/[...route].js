@@ -299,7 +299,7 @@ async function handleWriteFiles(request) {
     }
 
     if (body.target !== 'factory') {
-      assertSkillRegistryPath(file.path);
+      assertSkillRegistryPath(file.path, file.content);
     }
 
     const sec = scanSecrets(file.content);
@@ -350,10 +350,6 @@ async function handleDeleteFile(request) {
     body.path.startsWith('/')
   ) {
     throw new Error('Invalid path');
-  }
-
-  if (body.target !== 'factory') {
-    assertSkillRegistryPath(body.path);
   }
 
   const result = await deleteTextFile(
