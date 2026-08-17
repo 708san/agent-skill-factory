@@ -33,6 +33,24 @@ SUITE.json uses `schema_version: 1`, `kind: "suite"`, `name`, and `members.skill
 
 A public Suite may reference only public Skills/Flows. A private Suite may explicitly reference public or private objects.
 
+## Reverse dependency discovery
+
+`findRegistryDependents()` is a read-only scan over one dependent Registry scope at a time. Callers must provide the target object identity (`type`, `name`, and visibility), the dependent Registry visibility, and the exact ref to read in that Registry. It never assumes that the public and private Registries share a branch name or ref.
+
+v1 dependency edges are intentionally limited to:
+
+- target Skill ← Flow `exact_skill`;
+- target Skill ← Suite `members.skills`;
+- target Flow ← Suite `members.flows`.
+
+Capability steps and arbitrary string occurrences in descriptions, tags, `use_when`, or other metadata are not dependencies.
+
+Reference identity includes effective visibility. For a Flow exact Skill reference, effective visibility is `step.skill.visibility || flowVisibility`; for a Suite member it is `member.visibility || suiteVisibility`. A private dependent that omits visibility therefore references a private target, while an explicit `visibility: public` reference points to the public target with the same name.
+
+For a public target, complete reverse-dependency discovery may require two explicit calls: scan the public Registry at its public ref, then scan the private Registry at its private ref. The scanner does not merge Registry refs or enforce public/private reference validity; visibility validation remains the manifest validator's responsibility.
+
+The read-only `getRegistryDependents` API exposes this one-scope scan. It does not write, rewrite, migrate, rename, delete, or maintain a persistent dependency index.
+
 ## Routing
 
 Flow discovery remains separate from `searchSkills()`. Existing Skill search scoring is unchanged. Runtime selects by request granularity: local/single responsibility → Skill; strongly matching known end-to-end → Flow; uncovered multi-responsibility → compose. Explicit `$skill-name` remains Skill syntax; explicit Flow syntax is `$flow:<name>`.
