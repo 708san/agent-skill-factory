@@ -37,6 +37,7 @@ import {
   listSuites,
   searchSuites,
   getSuite,
+  findRegistryDependents,
   validateFlowPackage,
   validateSuitePackage
 } from '../lib/registry.js';
@@ -90,6 +91,12 @@ export default {
 
         case 'suite':
           return handleSuite(url);
+
+        case 'registry-dependents':
+          if (request.method !== 'GET') {
+            throw new Error('GET required');
+          }
+          return handleRegistryDependents(url);
 
         case 'skill-history':
         case 'registry-history':
@@ -305,6 +312,37 @@ async function handleSuite(url) {
   return json({
     ok: true,
     ...(await getSuite(visibility, name, ref))
+  });
+}
+
+
+async function handleRegistryDependents(url) {
+  const targetType = url.searchParams.get('targetType');
+  const targetName = url.searchParams.get('targetName');
+  const targetVisibility = url.searchParams.get('targetVisibility');
+  const dependentVisibility = url.searchParams.get('dependentVisibility');
+  const ref = url.searchParams.get('ref');
+
+  const dependents = await findRegistryDependents({
+    targetType,
+    targetName,
+    targetVisibility,
+    dependentVisibility,
+    ref
+  });
+
+  return json({
+    ok: true,
+    target: {
+      type: targetType,
+      name: targetName,
+      visibility: targetVisibility
+    },
+    scan: {
+      visibility: dependentVisibility,
+      ref
+    },
+    dependents
   });
 }
 
