@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Agent Skill Factory Registry API
-  version: 0.5.0
+  version: 0.6.0
   description: Narrow GitHub-backed API for a web-only Agent Skill Factory, extended with first-class Flow and Suite registry objects.
 servers:
   - url: https://YOUR-VERCEL-DOMAIN.vercel.app
@@ -180,6 +180,35 @@ paths:
       parameters: *getParams
       responses:
         '200': {description: Suite}
+  /api/registry-dependents:
+    get:
+      operationId: getRegistryDependents
+      summary: Find reverse Registry dependencies within one explicitly selected dependent Registry scope/ref.
+      parameters:
+        - in: query
+          name: targetType
+          required: true
+          schema: {type: string, enum: [skill, flow]}
+        - in: query
+          name: targetName
+          required: true
+          schema: {type: string}
+        - in: query
+          name: targetVisibility
+          required: true
+          schema: {type: string, enum: [public, private]}
+        - in: query
+          name: dependentVisibility
+          required: true
+          schema: {type: string, enum: [public, private]}
+        - in: query
+          name: ref
+          required: true
+          schema: {type: string}
+      responses:
+        '200': {description: Matching reverse dependencies from the requested Registry scope.}
+        '400': {description: Invalid target identity, Registry scope, or ref.}
+        '401': {description: Unauthorized}
   /api/skill-history:
     get:
       operationId: getSkillHistory
