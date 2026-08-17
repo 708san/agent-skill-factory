@@ -26,9 +26,21 @@ import {
   searchSkills,
   getSkill,
   getSkillFile,
-  assertSkillRegistryPath,
   validateSkillText
 } from '../lib/skills.js';
+
+import {
+  assertRegistryPath,
+  listFlows,
+  searchFlows,
+  getFlow,
+  listSuites,
+  searchSuites,
+  getSuite,
+  findRegistryDependents,
+  validateFlowPackage,
+  validateSuitePackage
+} from '../lib/registry.js';
 
 import { scanSecrets } from '../lib/security.js';
 
@@ -62,8 +74,33 @@ export default {
         case 'skill-file':
           return handleSkillFile(url);
 
+        case 'flows':
+          return handleFlows(url);
+
+        case 'search-flows':
+          return handleSearchFlows(url);
+
+        case 'flow':
+          return handleFlow(url);
+
+        case 'suites':
+          return handleSuites(url);
+
+        case 'search-suites':
+          return handleSearchSuites(url);
+
+        case 'suite':
+          return handleSuite(url);
+
+        case 'registry-dependents':
+          if (request.method !== 'GET') {
+            throw new Error('GET required');
+          }
+          return handleRegistryDependents(url);
+
         case 'skill-history':
-          return handleSkillHistory(url);
+        case 'registry-history':
+          return handleRegistryHistory(url);
 
         case 'create-branch':
           return handleCreateBranch(request);
@@ -76,6 +113,12 @@ export default {
 
         case 'validate-skill':
           return handleValidateSkill(request);
+
+        case 'validate-flow':
+          return handleValidateFlow(request);
+
+        case 'validate-suite':
+          return handleValidateSuite(request);
 
         case 'compare':
           return handleCompare(url);
@@ -195,7 +238,116 @@ async function handleSkillFile(url) {
 }
 
 
-async function handleSkillHistory(url) {
+async function handleFlows(url) {
+  const visibility = url.searchParams.get('visibility');
+  const ref = url.searchParams.get('ref') || undefined;
+
+  return json({
+    ok: true,
+    visibility,
+    flows: await listFlows(visibility, ref)
+  });
+}
+
+
+async function handleSearchFlows(url) {
+  const query = url.searchParams.get('query');
+  const visibility = url.searchParams.get('visibility');
+  const limit = url.searchParams.get('limit') || 5;
+  const ref = url.searchParams.get('ref') || undefined;
+
+  return json({
+    ok: true,
+    query,
+    visibility,
+    flows: await searchFlows(query, visibility, limit, ref)
+  });
+}
+
+
+async function handleFlow(url) {
+  const visibility = url.searchParams.get('visibility');
+  const name = url.searchParams.get('name');
+  const ref = url.searchParams.get('ref') || undefined;
+
+  return json({
+    ok: true,
+    ...(await getFlow(visibility, name, ref))
+  });
+}
+
+
+async function handleSuites(url) {
+  const visibility = url.searchParams.get('visibility');
+  const ref = url.searchParams.get('ref') || undefined;
+
+  return json({
+    ok: true,
+    visibility,
+    suites: await listSuites(visibility, ref)
+  });
+}
+
+
+async function handleSearchSuites(url) {
+  const query = url.searchParams.get('query');
+  const visibility = url.searchParams.get('visibility');
+  const limit = url.searchParams.get('limit') || 5;
+  const ref = url.searchParams.get('ref') || undefined;
+
+  return json({
+    ok: true,
+    query,
+    visibility,
+    suites: await searchSuites(query, visibility, limit, ref)
+  });
+}
+
+
+async function handleSuite(url) {
+  const visibility = url.searchParams.get('visibility');
+  const name = url.searchParams.get('name');
+  const ref = url.searchParams.get('ref') || undefined;
+
+  return json({
+    ok: true,
+    ...(await getSuite(visibility, name, ref))
+  });
+}
+
+
+async function handleRegistryDependents(url) {
+  const targetType = url.searchParams.get('targetType');
+  const targetName = url.searchParams.get('targetName');
+  const targetVisibility = url.searchParams.get('targetVisibility');
+  const dependentVisibility = url.searchParams.get('dependentVisibility');
+  const ref = url.searchParams.get('ref');
+
+  const dependents = await findRegistryDependents({
+    targetType,
+    targetName,
+    targetVisibility,
+    dependentVisibility,
+    ref
+  });
+
+  return json({
+    ok: true,
+    target: {
+      type: targetType,
+      name: targetName,
+      visibility: targetVisibility
+    },
+    scan: {
+      visibility: dependentVisibility,
+      ref
+    },
+    dependents
+  });
+}
+
+
+async function handleRegistryHistory(url) {
   const target = url.searchParams.get('target');
   const visibility = url.searchParams.get('visibility');
   const name = url.searchParams.get('name');
@@ -204,15 +356,30 @@ async function handleSkillHistory(url) {
     throw new Error('name is required');
   }
 
+  const normalizedTarget = target || 'skill';
+
+  if (![
+    'skill',
+    'flow',
+    'suite',
+    'factory'
+  ].includes(normalizedTarget)) {
+    throw new Error(
+      'target must be skill, flow, suite, or factory'
+    );
+  }
+
   const repo =
-    target === 'factory'
+    normalizedTarget === 'factory'
       ? config().factoryRepo
       : repoForVisibility(visibility);
 
-  const basePath =
-    target === 'factory'
-      ? `factory/${name}`
-      : `skills/${name}`;
+  const basePath = {
+    skill: `skills/${name}`,
+    flow: `flows/${name}`,
+    suite: `suites/${name}`,
+    factory: `factory/${name}`
+  }[normalizedTarget];
 
   const commits = await listCommitsForPath(
     repo,
@@ -287,6 +454,7 @@ async function handleWriteFiles(request) {
         'Each file needs path and content'
       );
     }
+
     const pathSegments = file.path.split('/');
     if (
       pathSegments.includes('..') ||
@@ -299,7 +467,7 @@ async function handleWriteFiles(request) {
     }
 
     if (body.target !== 'factory') {
-      assertSkillRegistryPath(file.path, file.content);
+      assertRegistryPath(file.path, file.content);
     }
 
     const sec = scanSecrets(file.content);
@@ -352,6 +520,10 @@ async function handleDeleteFile(request) {
     throw new Error('Invalid path');
   }
 
+  if (body.target !== 'factory') {
+    assertRegistryPath(body.path);
+  }
+
   const result = await deleteTextFile(
     repo,
     body.path,
@@ -379,6 +551,54 @@ async function handleValidateSkill(request) {
 
   const secrets = scanSecrets(
     body.skillMd || ''
+  );
+
+  return json({
+    ok: structure.ok && secrets.ok,
+    structure,
+    secrets
+  });
+}
+
+
+async function handleValidateFlow(request) {
+  requirePost(request);
+
+  const body = await readJson(request);
+
+  const structure = await validateFlowPackage({
+    visibility: body.visibility,
+    name: body.name,
+    ref: body.ref,
+    flowJson: body.flowJson
+  });
+
+  const secrets = scanSecrets(
+    body.flowJson || ''
+  );
+
+  return json({
+    ok: structure.ok && secrets.ok,
+    structure,
+    secrets
+  });
+}
+
+
+async function handleValidateSuite(request) {
+  requirePost(request);
+
+  const body = await readJson(request);
+
+  const structure = await validateSuitePackage({
+    visibility: body.visibility,
+    name: body.name,
+    ref: body.ref,
+    suiteJson: body.suiteJson
+  });
+
+  const secrets = scanSecrets(
+    body.suiteJson || ''
   );
 
   return json({

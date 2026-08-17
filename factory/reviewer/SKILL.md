@@ -65,9 +65,63 @@ Expect behavior coverage appropriate to the Skill, including:
 - use-only work caused no repository mutation;
 - PR creation matches explicit user authorization.
 
+# Flow package checks
+
+For a completed Flow, verify:
+
+- canonical `flows/<name>/FLOW.json` placement and directory/name match;
+- valid JSON/schema and v1 DAG;
+- unique step ids, existing dependencies, and no cycles;
+- exact Skill references exist and are never silently substituted;
+- capability definitions remain dynamically resolvable;
+- handoff sources and expected outputs are consistent;
+- duplicate/conflicting outputs are rejected;
+- conditions are limited to declarative `condition.when` equality checks;
+- completion requires all applicable required steps;
+- excluding an applicable required step prevents full success;
+- Flow → Flow recursion is rejected in v1;
+- Flow contains orchestration semantics rather than copied Skill How/prompt text;
+- public Flow does not reference private objects.
+
+# Suite package checks
+
+For a completed Suite, verify:
+
+- canonical `suites/<name>/SUITE.json` placement and directory/name match;
+- member Skill/Flow references exist and contain no duplicates;
+- membership is non-owning and one member may be reused by multiple Suites;
+- policy/gates/contracts apply only in explicit Suite/Flow context;
+- Suite is a discovery scope rather than a normal executable target;
+- public Suite does not reference private objects.
+
 # Factory change review
 
 For runtime/Factory changes, verify existing modes and routes remain available, new behavior is covered by evals, implementation and instructions agree, and code guards enforce structural invariants when practical.
+
+For Flow/Suite Factory changes, explicitly regression-check:
+
+1. existing exact Skill invocation remains unchanged;
+2. existing discover Skill behavior remains unchanged;
+3. existing recommend behavior remains unchanged;
+4. existing compose remains dynamic and available;
+5. local/single-responsibility requests are not absorbed by Flows;
+6. strongly matching known end-to-end requests may select a Flow;
+7. uncovered multi-responsibility requests use compose;
+8. standalone Suite-member Skill receives no Suite policy;
+9. one Skill may be referenced by multiple Suites;
+10. exact Flow steps are not substituted;
+11. capability Flow steps may resolve dynamically;
+12. nonexistent exact Skill references are rejected;
+13. dependency cycles are rejected;
+14. public Flow/Suite → private references are rejected;
+15. optional conditions behave declaratively;
+16. excluded applicable required steps prevent full-success claims;
+17. `searchSkills` results/scoring are not polluted by Flow/Suite discovery;
+18. Flow/Suite read/search/write/validate/history paths exist;
+19. legacy API routes and `target=skill` repository semantics remain available;
+20. public/private repository boundaries remain intact.
+
+Also verify generalized Registry write/delete path guards preserve valid existing Skill paths, Flow/Suite JSON uses no unnecessary parser dependency, and `api/openapi.js` / `gpt/openapi.yaml` stay aligned without deleting existing API contracts.
 
 # Decision
 

@@ -7,6 +7,15 @@ description: Route Agent Skill Factory requests across create, use, audit, refac
 
 Coordinate the Skill Factory without absorbing specialist responsibilities. GitHub-backed Factory modules and Agent Skills are the source of truth.
 
+Flow and Suite extend the Registry without changing existing Skill semantics:
+
+- Skill = standalone reusable capability and remains a global first-class Registry object;
+- Flow = reusable saved execution plan for a known task;
+- Suite = non-owning Skill/Flow relationship, discovery scope, and optional context-only shared policy;
+- compose = runtime-generated dynamic execution plan for tasks not adequately covered by one Skill or a saved Flow.
+
+Never move a Skill under a Suite, treat Suite membership as ownership, or inject Suite policy into standalone Skill use. The same Skill or Flow may be referenced by multiple Suites.
+
 # Modes
 
 - `use`: select and execute existing Skills without modifying repositories.
@@ -17,6 +26,8 @@ Coordinate the Skill Factory without absorbing specialist responsibilities. GitH
 - `merge`: combine genuinely overlapping Skills when one coherent responsibility remains.
 - `publish`: create a public-safe variant from private source material.
 - `rollback`: restore a previous known-good version through repository history.
+
+For Flow/Suite Registry work, apply the same mode meanings and repository workflow to the requested Registry object; Suite is not normally an executable target.
 
 # Routing
 
@@ -29,9 +40,13 @@ Coordinate the Skill Factory without absorbing specialist responsibilities. GitH
 7. For `publish`, load publisher → reviewer.
 8. For `rollback`, use repository operations and validate the restored state.
 
+For Flow/Suite create, audit, or refactor requests, the target Registry object/package replaces the Skill/package referent above; the specialist sequence is unchanged.
+
 # Use runtime
 
 Classify a use request as `exact`, `discover`, `recommend`, or `compose`. Ordinary/meta questions stay outside Skill use.
+
+Saved Flow routing is an additional path that does not redefine these existing Skill paths. `$skill-name` continues to mean exact Skill invocation. `$flow:<flow-name>` is the non-conflicting explicit Flow syntax.
 
 ## A. exact
 
@@ -45,6 +60,8 @@ For one named Skill:
 4. Execute the Skill.
 
 For multiple explicitly named Skills, verify existence, visibility, user-specified order, and input/output compatibility. Treat the request as exact composition and follow `references/composition-runtime.md` for handoff rules. Do not add extra Skills unless required to satisfy the user's goal and constraints.
+
+Suite membership must not change this exact Skill behavior or inject Suite policy.
 
 ## B. discover
 
@@ -70,6 +87,8 @@ Procedure:
 
 Do not mechanically search for every request. Use ordinary/meta routing for explanation-only requests.
 
+Flow search is separate from `searchSkills`; do not blend Flow results into Skill scoring or discovery results. A local/single-responsibility request stays on the Skill path even when a broader Flow exists.
+
 ## C. recommend
 
 Use when the user asks only for candidates or availability and does not want execution yet.
@@ -85,6 +104,8 @@ Procedure:
 1. Call `searchSkills`.
 2. Present the best candidates with their intended use and visibility.
 3. Do not call `getSkill` or execute a Skill unless the user asks to proceed.
+
+Skill recommendation remains Skill-only unless the user specifically asks for Flows, Suites, or saved end-to-end plans.
 
 ## D. compose
 
@@ -116,6 +137,37 @@ Search the current Registry and select the minimum Skill set needed. Do not use 
 
 Load `references/composition-runtime.md` when composition is selected.
 
+For a multi-responsibility request, first use a saved Flow only when a registered Flow strongly matches the requested end-to-end outcome. If no adequate Flow exists, keep the existing dynamic compose behavior above.
+
+# Saved Flow routing
+
+Use a Flow for a deliberately saved, known end-to-end execution plan, not merely because a Flow exists.
+
+- explicit `$flow:<name>` → load that Flow;
+- local/single responsibility → use Skill discovery/exact routing;
+- known end-to-end task with a strongly matching registered Flow → Flow may be selected;
+- multi-responsibility task without an adequate Flow → compose.
+
+When executing a Flow:
+
+1. load and validate the Flow;
+2. honor DAG dependencies, declared handoffs, conditions, and completion semantics;
+3. evaluate only the limited declarative `condition.when` equality form;
+4. for `exact_skill`, call the named Skill directly and never silently substitute another Skill;
+5. if an exact Skill is missing or incompatible, fail that step/Flow rather than changing its meaning;
+6. for `capability`, dynamically discover the capability through existing Skill discovery and use compose only when the capability step permits/requires multi-Skill resolution;
+7. do not claim full success when an applicable required step is incomplete or explicitly excluded;
+8. v1 does not recursively execute Flow → Flow references.
+
+# Suite discovery scope
+
+A Suite is not normally executed. When a Suite is explicitly selected as context:
+
+1. load the Suite;
+2. scope relevant Skill/Flow discovery to its referenced members;
+3. apply Suite policies, quality gates, or artifact-contract references only in that explicit Suite/Flow context;
+4. never inject those policies into standalone member Skill execution.
+
 # Ordinary / meta routing
 
 Do not search Skills for explanation-only questions, including:
@@ -143,6 +195,8 @@ Respect explicit user constraints whenever compatible with existence, visibility
 
 Do not silently expand scope beyond those constraints.
 
+The same rule applies to explicit Flow selection, step exclusions, and Suite scoping; excluding an applicable required Flow step prevents a full-success claim.
+
 # Repository policy
 
 - GitHub files returned by Actions are authoritative; do not embed fixed copies of Skill bodies.
@@ -153,6 +207,8 @@ Do not silently expand scope beyond those constraints.
 - Create a pull request only when the user explicitly requests PR creation or explicitly authorizes proceeding through PR when acceptable.
 - Public/private repositories are security boundaries. Multi-Skill use may combine public and private Skills read-only, but private content must never be written to public storage outside the publisher workflow.
 
+For Registry references, public Flow/Suite objects may reference public objects only; private Flow/Suite objects may explicitly reference public or private Registry objects. Public manifests must not reveal private Registry names or repository information.
+
 # Progressive disclosure
 
 Load resources in this order and only as needed:
@@ -160,6 +216,8 @@ Load resources in this order and only as needed:
 orchestrator → required Factory module(s) → selected Skill → files required by that Skill → compact handoff → next selected Skill.
 
 Do not preload all Factory modules, all Skills, all SKILL.md files, or all references.
+
+For Flow execution, load the Flow manifest first and then only the Skills/resources required by applicable steps. Suite manifests are loaded only when Suite context is requested or required for scoped discovery.
 
 # Definition of done
 
@@ -172,3 +230,5 @@ A routed request is complete only when:
 - user constraints and public/private boundaries were preserved;
 - use mode performed no repository mutation;
 - change modes completed validation, diff, and reviewer checks before optional PR creation.
+
+For Flow/Suite-aware routing, also verify that local work was not absorbed into a Flow, exact Flow steps were not substituted, Suite policy stayed context-scoped, and uncovered multi-responsibility work remained dynamically composed.
