@@ -32,5 +32,13 @@ These cases are the required reviewer/E2E contract. They are designed to be exec
 | 26 | Flow step type `flow` / recursive nesting | Validator rejects in v1 |
 | 27 | Delete path outside Registry roots using registry target | General Registry path guard rejects |
 | 28 | Public Flow capability step forces private visibility | Validator rejects |
+| 29 | Skill target, Flow `exact_skill` name matches but effective visibility differs | Not returned as a dependency |
+| 30 | Private Flow exact Skill omits visibility | Effective visibility is private; matches only private target identity |
+| 31 | Private Flow exact Skill explicitly uses `visibility: public` | Effective visibility is public; matches public target identity |
+| 32 | Skill name appears only in capability query or metadata text | Not returned as a dependency |
+| 33 | Skill target appears in Suite `members.skills` | Returned as `suite_skill_member` with member index and effective visibility |
+| 34 | Flow target appears in Suite `members.flows` | Returned as `suite_flow_member` with member index and effective visibility |
+| 35 | Public target dependency scan across public/private Registries | Requires two explicit calls, each with its own dependent visibility and ref; no implicit cross-Registry scan |
+| 36 | `getRegistryDependents` request | Read-only GET; response contains dependent identity, manifest path, reference kind/location, referenced name, explicit visibility state/value, and effective visibility |
 
 Reviewer must explicitly state whether each class is statically verified, executed E2E, unexecuted, or failed.
