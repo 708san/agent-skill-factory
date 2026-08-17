@@ -51,7 +51,6 @@ export default {
       requireAuth(request);
       const url = new URL(request.url);
       const route = url.pathname.replace(/^\/api\//, '').replace(/\/+$/, '');
-
       switch (route) {
         case 'factory-module': return handleFactoryModule(url);
         case 'factory-file': return handleFactoryFile(url);
@@ -179,12 +178,7 @@ async function handleRegistryDependents(url) {
   const dependentVisibility = url.searchParams.get('dependentVisibility');
   const ref = url.searchParams.get('ref');
   const dependents = await findRegistryDependents({ targetType, targetName, targetVisibility, dependentVisibility, ref });
-  return json({
-    ok: true,
-    target: { type: targetType, name: targetName, visibility: targetVisibility },
-    scan: { visibility: dependentVisibility, ref },
-    dependents
-  });
+  return json({ ok: true, target: { type: targetType, name: targetName, visibility: targetVisibility }, scan: { visibility: dependentVisibility, ref }, dependents });
 }
 
 async function handleRegistryHistory(url) {
@@ -233,19 +227,19 @@ async function handleDeleteFile(request) {
   requirePost(request);
   const body = await readJson(request);
   const repo = body.target === 'factory' ? config().factoryRepo : repoForVisibility(body.visibility);
-
   if (!body.path || body.path.includes('..') || body.path.startsWith('/')) throw new Error('Invalid path');
 
   if (body.target !== 'factory') {
     assertRegistryPath(body.path);
-    const preflight = await preflightRegistryDelete({
-      path: body.path,
-      visibility: body.visibility,
-      branch: body.branch,
-      dependencyRefs: body.dependencyRefs || {}
-    });
+    const preflight = await preflightRegistryDelete({ path: body.path, visibility: body.visibility, branch: body.branch, dependencyRefs: body.dependencyRefs || {} });
     if (preflight.guarded && !preflight.safe) {
-      return json({ ok: false, ...preflight }, 409);
+      const scanIncomplete = ['missing_delete_ref', 'missing_dependency_ref', 'dependency_scan_incomplete'].includes(preflight.reason);
+      return json({
+        ok: false,
+        ...preflight,
+        scan_complete: !scanIncomplete,
+        dependent_count: scanIncomplete ? null : preflight.dependent_count
+      }, 409);
     }
   }
 
@@ -285,17 +279,7 @@ async function handleCompare(url) {
   if (!head) throw new Error('head is required');
   const repo = target === 'factory' ? config().factoryRepo : repoForVisibility(visibility);
   const diff = await compare(repo, base, head);
-  return json({
-    ok: true,
-    repository: `${config().owner}/${repo}`,
-    base,
-    head,
-    status: diff.status,
-    aheadBy: diff.ahead_by,
-    behindBy: diff.behind_by,
-    totalCommits: diff.total_commits,
-    files: (diff.files || []).map((f) => ({ filename: f.filename, status: f.status, additions: f.additions, deletions: f.deletions, patch: f.patch || null }))
-  });
+  return json({ ok: true, repository: `${config().owner}/${repo}`, base, head, status: diff.status, aheadBy: diff.ahead_by, behindBy: diff.behind_by, totalCommits: diff.total_commits, files: (diff.files || []).map((f) => ({ filename: f.filename, status: f.status, additions: f.additions, deletions: f.deletions, patch: f.patch || null })) });
 }
 
 async function handlePullRequest(request) {
