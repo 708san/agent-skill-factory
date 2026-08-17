@@ -21,8 +21,16 @@ paths:
       operationId: getFactoryFile
       summary: Read one UTF-8 source file from the Agent Skill Factory repository.
       parameters:
-        - {in: query, name: path, required: true, schema: {type: string}}
-        - {in: query, name: ref, required: false, schema: {type: string}}
+        - in: query
+          name: path
+          required: true
+          description: Repository-relative path such as api/[...route].js, lib/skills.js, or gpt/INSTRUCTIONS.md.
+          schema: {type: string}
+        - in: query
+          name: ref
+          required: false
+          description: Optional Git ref such as main or a feature branch.
+          schema: {type: string}
       responses: {'200': {description: Factory source file}, '400': {description: Invalid path or request}, '401': {description: Unauthorized}}
   /api/skills:
     get:
@@ -41,7 +49,7 @@ paths:
         - {in: query, name: visibility, required: true, schema: {type: string, enum: [public, private]}}
         - {in: query, name: limit, required: false, schema: {type: integer, minimum: 1, maximum: 20, default: 5}}
         - {in: query, name: ref, required: false, schema: {type: string}}
-      responses: {'200': {description: Matching Skills}, '400': {description: Invalid query or visibility.}}
+      responses: {'200': {description: Matching Skills with name, description, visibility, and optional metadata.}, '400': {description: Invalid query or visibility.}}
   /api/skill:
     get:
       operationId: getSkill
@@ -58,7 +66,11 @@ paths:
       parameters:
         - {in: query, name: visibility, required: true, schema: {type: string, enum: [public, private]}}
         - {in: query, name: name, required: true, schema: {type: string}}
-        - {in: query, name: path, required: true, schema: {type: string}}
+        - in: query
+          name: path
+          required: true
+          description: Path relative to the Skill root, such as references/rubric.md.
+          schema: {type: string}
         - {in: query, name: ref, required: false, schema: {type: string}}
       responses: {'200': {description: Skill resource}}
   /api/flows:
@@ -83,12 +95,12 @@ paths:
         - {in: query, name: targetVisibility, required: true, schema: {type: string, enum: [public, private]}}
         - {in: query, name: dependentVisibility, required: true, schema: {type: string, enum: [public, private]}}
         - {in: query, name: ref, required: true, schema: {type: string}}
-      responses: {'200': {description: Matching reverse dependencies}, '400': {description: Invalid target identity, Registry scope, or ref.}, '401': {description: Unauthorized}}
+      responses: {'200': {description: Matching reverse dependencies from the requested Registry scope.}, '400': {description: Invalid target identity, Registry scope, or ref.}, '401': {description: Unauthorized}}
   /api/skill-history:
     get:
       operationId: getSkillHistory
       summary: Get recent commits touching a Skill or Factory module.
-      parameters: &historyParams
+      parameters:
         - {in: query, name: target, required: false, schema: {type: string, enum: [skill, flow, suite, factory], default: skill}}
         - {in: query, name: visibility, required: false, schema: {type: string, enum: [public, private]}}
         - {in: query, name: name, required: true, schema: {type: string}}
@@ -98,7 +110,11 @@ paths:
     get:
       operationId: getRegistryHistory
       summary: Get recent commits touching a Skill, Flow, Suite, or Factory module.
-      parameters: *historyParams
+      parameters:
+        - {in: query, name: target, required: true, schema: {type: string, enum: [skill, flow, suite, factory]}}
+        - {in: query, name: visibility, required: false, schema: {type: string, enum: [public, private]}}
+        - {in: query, name: name, required: true, schema: {type: string}}
+        - {in: query, name: ref, required: false, schema: {type: string}}
       responses: {'200': {description: Commit history}}
   /api/create-branch:
     post:
