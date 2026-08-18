@@ -66,7 +66,7 @@ export default {
 
       info: {
         title: 'Agent Skill Factory Registry API',
-        version: '0.6.0'
+        version: '0.7.0'
       },
 
       servers: [
@@ -380,18 +380,31 @@ export default {
         '/api/delete-file': {
           post: {
             operationId: 'deleteRegistryFile',
-            summary: 'Delete one text file on a change branch.',
+            summary: 'Delete one text file on a change branch. Primary Skill/Flow manifests use dependency-aware fail-closed preflight.',
             requestBody: bodySchema(
               {
                 target: registryTarget,
                 visibility: {type: 'string', enum: ['public', 'private']},
                 branch: {type: 'string'},
                 path: {type: 'string'},
-                message: {type: 'string'}
+                message: {type: 'string'},
+                dependencyRefs: {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: {
+                    privateRef: {
+                      type: 'string',
+                      description: 'Required for public primary Skill/Flow deletion; ref used to scan private Registry dependents.'
+                    }
+                  }
+                }
               },
               ['branch', 'path']
             ),
-            responses: {'200': {description: 'File deleted'}}
+            responses: {
+              '200': {description: 'File deleted'},
+              '409': {description: 'Deletion blocked because dependency preflight is incomplete or dependents exist.'}
+            }
           }
         },
 
