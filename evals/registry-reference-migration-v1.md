@@ -12,9 +12,9 @@ Migration is explicit and scoped to one dependent Registry visibility/ref per re
 | F | Flow visibility migration: Suite member visibility is updated explicitly only as required by existing explicit/implicit semantics. |
 | G | Destination does not exist: endpoint inspection returns blocked `destination_unavailable`; apply cannot write. |
 | H | Invalid destination ref/API failure: destination inspection fails closed; apply cannot write. |
-| I | Apply requires `expectedFiles[path]` equal to the fresh plan SHA and uses GitHub Contents API write with that SHA; stale/missing/unexpected plan entries block before writes. |
+| I | Plan returns fixed-shape `expectedFiles: [{path, sha}]`. Apply rejects non-array input, missing path, duplicate path, missing sha, missing planned path, unexpected path, and current SHA mismatch before any write; successful writes use the GitHub Contents API SHA as CAS. |
 | J | Capability queries, descriptions, tags, metadata, and unrelated strings are never selected as migration targets; only `exact_skill`, `members.skills`, and `members.flows` locations returned by reverse dependency discovery are changed. |
-| K | Each dependent manifest is validated before write and the proposed manifest is revalidated; cross-ref endpoint existence is checked at explicit endpoint ref while unrelated references retain dependent ref validation. Post-write manifests are re-fetched and validated again. |
+| K | Current and proposed dependent manifests must pass the ordinary Flow/Suite validator at `dependentRef`. `from.ref` and `to.ref` verify endpoint objects only and never override dependentRef validation. |
 | L | Apply re-runs `findRegistryDependents()` for the old identity and returns `remaining_old_dependency_count`; a fully migrated scope is successful only when that count is zero. |
 | M | Migration never deletes the source; if old dependencies remain in any required delete scope, the existing dependency-aware delete guard continues to block source deletion. |
 | N | Once all required dependent scopes have been migrated and old reverse dependencies are zero, the unchanged delete guard lifecycle can permit source deletion after its own complete scans. |
@@ -27,8 +27,12 @@ Migration is explicit and scoped to one dependent Registry visibility/ref per re
 - `targetType`, source `{name, visibility, ref}`, destination `{name, visibility, ref}`, `dependentVisibility`, and `dependentRef` are all explicit.
 - Public dependent scope may migrate only to a public destination.
 - Private dependent scope may migrate to public or private destinations.
+- `from.ref` / `to.ref` are endpoint existence/validation refs only; they do not change Flow/Suite runtime reference semantics.
+- A dependent manifest must be valid at `dependentRef` both before migration and after the proposed structural rewrite.
+- If a destination exists at `to.ref` but is not resolvable from `dependentRef`, planning blocks with `destination_not_resolvable_from_dependent_ref`.
 - Plan performs no write.
-- Apply requires a plan-derived SHA map and does not create/delete Registry objects.
+- Apply consumes fixed-shape `expectedFiles: [{path, sha}]` and requires a plan-derived SHA entry for every current migration target.
+- Apply does not create/delete Registry objects.
 - There is no force migration, publish hook, rename magic endpoint, persistent dependency index, capability rewrite, or metadata replacement.
 
 ## Partial failure
