@@ -61,12 +61,31 @@ export default {
       enum: ['skill', 'registry', 'factory']
     };
 
+    const migrationEndpoint = {
+      type: 'object',
+      additionalProperties: false,
+      required: ['name', 'visibility', 'ref'],
+      properties: {
+        name: {type: 'string'},
+        visibility: {type: 'string', enum: ['public', 'private']},
+        ref: {type: 'string'}
+      }
+    };
+
+    const migrationRequestProperties = {
+      targetType: {type: 'string', enum: ['skill', 'flow']},
+      from: migrationEndpoint,
+      to: migrationEndpoint,
+      dependentVisibility: {type: 'string', enum: ['public', 'private']},
+      dependentRef: {type: 'string'}
+    };
+
     const schema = {
       openapi: '3.1.0',
 
       info: {
         title: 'Agent Skill Factory Registry API',
-        version: '0.7.0'
+        version: '0.8.0'
       },
 
       servers: [
@@ -296,6 +315,46 @@ export default {
             responses: {
               '200': {description: 'Matching reverse dependencies from the requested Registry scope.'},
               '400': {description: 'Invalid target identity, Registry scope, or ref.'},
+              '401': {description: 'Unauthorized'}
+            }
+          }
+        },
+
+        '/api/plan-registry-reference-migration': {
+          post: {
+            operationId: 'planRegistryReferenceMigration',
+            summary: 'Plan a read-only structural Registry reference migration.',
+            requestBody: bodySchema(
+              migrationRequestProperties,
+              ['targetType', 'from', 'to', 'dependentVisibility', 'dependentRef']
+            ),
+            responses: {
+              '200': {description: 'Migration plan including destination validation, dependents, structural changes, validation previews, and expected file SHAs.'},
+              '400': {description: 'Invalid migration request.'},
+              '401': {description: 'Unauthorized'}
+            }
+          }
+        },
+
+        '/api/apply-registry-reference-migration': {
+          post: {
+            operationId: 'applyRegistryReferenceMigration',
+            summary: 'Apply a previously planned structural Registry reference migration with SHA protection.',
+            requestBody: bodySchema(
+              {
+                ...migrationRequestProperties,
+                expectedFiles: {
+                  type: 'object',
+                  additionalProperties: {type: 'string'},
+                  description: 'Map of dependent manifest path to expected Git blob SHA returned by the plan.'
+                },
+                message: {type: 'string'}
+              },
+              ['targetType', 'from', 'to', 'dependentVisibility', 'dependentRef', 'expectedFiles']
+            ),
+            responses: {
+              '200': {description: 'Apply result including migrated count, post-write validation, and remaining old dependencies.'},
+              '400': {description: 'Invalid migration request.'},
               '401': {description: 'Unauthorized'}
             }
           }
