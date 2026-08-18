@@ -43,6 +43,11 @@ import {
   validateSuitePackage
 } from '../lib/registry.js';
 
+import {
+  planRegistryReferenceMigration,
+  applyRegistryReferenceMigration
+} from '../lib/migration.js';
+
 import { scanSecrets } from '../lib/security.js';
 
 export default {
@@ -67,6 +72,8 @@ export default {
         case 'registry-dependents':
           if (request.method !== 'GET') throw new Error('GET required');
           return handleRegistryDependents(url);
+        case 'plan-registry-reference-migration': return handlePlanRegistryReferenceMigration(request);
+        case 'apply-registry-reference-migration': return handleApplyRegistryReferenceMigration(request);
         case 'skill-history':
         case 'registry-history': return handleRegistryHistory(url);
         case 'create-branch': return handleCreateBranch(request);
@@ -179,6 +186,16 @@ async function handleRegistryDependents(url) {
   const ref = url.searchParams.get('ref');
   const dependents = await findRegistryDependents({ targetType, targetName, targetVisibility, dependentVisibility, ref });
   return json({ ok: true, target: { type: targetType, name: targetName, visibility: targetVisibility }, scan: { visibility: dependentVisibility, ref }, dependents });
+}
+
+async function handlePlanRegistryReferenceMigration(request) {
+  requirePost(request);
+  return json(await planRegistryReferenceMigration(await readJson(request)));
+}
+
+async function handleApplyRegistryReferenceMigration(request) {
+  requirePost(request);
+  return json(await applyRegistryReferenceMigration(await readJson(request)));
 }
 
 async function handleRegistryHistory(url) {
