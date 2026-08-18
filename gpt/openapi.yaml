@@ -1,64 +1,78 @@
 openapi: 3.1.0
 info:
   title: Agent Skill Factory Registry API
-  version: 0.8.0
-  description: Narrow GitHub-backed API for a web-only Agent Skill Factory with first-class Flow/Suite Registry objects, dependency-aware primary Skill/Flow delete preflight, and explicit Registry reference migration.
+  version: 0.9.0
+  description: GitHub-backed Agent Skill Factory API with structured errors, correlation IDs, diagnostics, idempotent mutations, full-batch preflight, and stale-branch guards.
 servers:
   - url: https://YOUR-VERCEL-DOMAIN.vercel.app
 paths:
   /api/health:
     get: {operationId: healthCheck, summary: Check whether the Factory API is running., responses: {'200': {description: OK}}}
+  /api/healthz:
+    get: {operationId: healthz, summary: Liveness check., security: [], responses: {'200': {description: Healthy}}}
+  /api/version:
+    get: {operationId: getApiVersion, summary: Return API version., security: [], responses: {'200': {description: Version}}}
+  /api/readyz:
+    get: {operationId: readyz, summary: Authenticated readiness check., responses: {'200': {description: Ready}, '503': {description: Not ready}}}
+  /api/diagnostics:
+    get: {operationId: getDiagnostics, summary: Read-only Factory/public/private repository, GitHub auth, base-ref, rate-limit, and permission diagnostics., responses: {'200': {description: Diagnostics}}}
+  /api/diagnostics/write-test:
+    post:
+      operationId: runDiagnosticsWriteTest
+      summary: Explicit temporary branch/file write-read-delete cleanup test.
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [confirm], properties: {confirm: {type: boolean}}}}}}
+      responses: {'200': {description: Write test result and cleanup}}
+  /api/preflight:
+    post:
+      operationId: preflightWriteFiles
+      summary: Validate an entire write-files batch without mutation.
+      requestBody: &writeBody
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [branch, files]
+              properties:
+                target: {type: string, enum: [skill, registry, factory], default: skill}
+                visibility: {type: string, enum: [public, private]}
+                branch: {type: string}
+                message: {type: string}
+                files:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [path, content]
+                    properties:
+                      path: {type: string}
+                      content: {type: string}
+                      expectedSha:
+                        type: [string, 'null']
+                        description: String enables compare-and-swap; null permits create-only; omitted preserves legacy update behavior.
+      responses: {'200': {description: Preflight result}, '400': {description: Validation failed}}
   /api/factory-module:
     get:
       operationId: getFactoryModule
       summary: Load the current SKILL.md for a Factory module.
       parameters:
         - {in: query, name: name, required: true, schema: {type: string, enum: [orchestrator, architect, author, reviewer, publisher]}}
-        - {in: query, name: ref, required: false, schema: {type: string}}
+        - &qRef {in: query, name: ref, required: false, schema: {type: string}}
       responses: {'200': {description: Factory module}}
   /api/factory-file:
     get:
       operationId: getFactoryFile
       summary: Read one UTF-8 source file from the Agent Skill Factory repository.
       parameters:
-        - in: query
-          name: path
-          required: true
-          description: Repository-relative path such as api/[...route].js, lib/skills.js, or gpt/INSTRUCTIONS.md.
-          schema: {type: string}
-        - in: query
-          name: ref
-          required: false
-          description: Optional Git ref such as main or a feature branch.
-          schema: {type: string}
-      responses: {'200': {description: Factory source file}, '400': {description: Invalid path or request}, '401': {description: Unauthorized}}
+        - {in: query, name: path, required: true, schema: {type: string}}
+        - *qRef
+      responses: {'200': {description: Factory source file}}
   /api/skills:
-    get:
-      operationId: listSkills
-      summary: List public or private Skills.
-      parameters: &listParams
-        - {in: query, name: visibility, required: true, schema: {type: string, enum: [public, private]}}
-        - {in: query, name: ref, required: false, schema: {type: string}}
-      responses: {'200': {description: Skill names}}
+    get: {operationId: listSkills, summary: List Skills., parameters: &listParams [{in: query, name: visibility, required: true, schema: {type: string, enum: [public, private]}}, *qRef], responses: {'200': {description: Skill names}}}
   /api/search-skills:
-    get:
-      operationId: searchSkills
-      summary: Search Skills by name and SKILL.md metadata.
-      parameters: &searchParams
-        - {in: query, name: query, required: true, schema: {type: string}}
-        - {in: query, name: visibility, required: true, schema: {type: string, enum: [public, private]}}
-        - {in: query, name: limit, required: false, schema: {type: integer, minimum: 1, maximum: 20, default: 5}}
-        - {in: query, name: ref, required: false, schema: {type: string}}
-      responses: {'200': {description: Matching Skills with name, description, visibility, and optional metadata.}, '400': {description: Invalid query or visibility.}}
+    get: {operationId: searchSkills, summary: Search Skills by name and SKILL.md metadata., parameters: &searchParams [{in: query, name: query, required: true, schema: {type: string}}, {in: query, name: visibility, required: true, schema: {type: string, enum: [public, private]}}, {in: query, name: limit, required: false, schema: {type: integer, minimum: 1, maximum: 20, default: 5}}, *qRef], responses: {'200': {description: Matching Skills}}}
   /api/skill:
-    get:
-      operationId: getSkill
-      summary: Load a Skill's current SKILL.md.
-      parameters: &getParams
-        - {in: query, name: visibility, required: true, schema: {type: string, enum: [public, private]}}
-        - {in: query, name: name, required: true, schema: {type: string}}
-        - {in: query, name: ref, required: false, schema: {type: string}}
-      responses: {'200': {description: Skill}}
+    get: {operationId: getSkill, summary: Load a Skill's SKILL.md., parameters: &getParams [{in: query, name: visibility, required: true, schema: {type: string, enum: [public, private]}}, {in: query, name: name, required: true, schema: {type: string}}, *qRef], responses: {'200': {description: Skill}}}
   /api/skill-file:
     get:
       operationId: getSkillFile
@@ -66,36 +80,32 @@ paths:
       parameters:
         - {in: query, name: visibility, required: true, schema: {type: string, enum: [public, private]}}
         - {in: query, name: name, required: true, schema: {type: string}}
-        - in: query
-          name: path
-          required: true
-          description: Path relative to the Skill root, such as references/rubric.md.
-          schema: {type: string}
-        - {in: query, name: ref, required: false, schema: {type: string}}
+        - {in: query, name: path, required: true, schema: {type: string}}
+        - *qRef
       responses: {'200': {description: Skill resource}}
   /api/flows:
     get: {operationId: listFlows, summary: List saved Flows., parameters: *listParams, responses: {'200': {description: Flow names}}}
   /api/search-flows:
-    get: {operationId: searchFlows, summary: Search saved Flows independently from Skill discovery., parameters: *searchParams, responses: {'200': {description: Matching Flows}, '400': {description: Invalid query or visibility.}}}
+    get: {operationId: searchFlows, summary: Search saved Flows independently from Skill discovery., parameters: *searchParams, responses: {'200': {description: Matching Flows}}}
   /api/flow:
     get: {operationId: getFlow, summary: Load a Flow's FLOW.json., parameters: *getParams, responses: {'200': {description: Flow}}}
   /api/suites:
     get: {operationId: listSuites, summary: List Suites., parameters: *listParams, responses: {'200': {description: Suite names}}}
   /api/search-suites:
-    get: {operationId: searchSuites, summary: Search Suites., parameters: *searchParams, responses: {'200': {description: Matching Suites}, '400': {description: Invalid query or visibility.}}}
+    get: {operationId: searchSuites, summary: Search Suites., parameters: *searchParams, responses: {'200': {description: Matching Suites}}}
   /api/suite:
     get: {operationId: getSuite, summary: Load a Suite's SUITE.json., parameters: *getParams, responses: {'200': {description: Suite}}}
   /api/registry-dependents:
     get:
       operationId: getRegistryDependents
-      summary: Find reverse Registry dependencies within one explicitly selected dependent Registry scope/ref.
+      summary: Find reverse Registry dependencies within one explicitly selected Registry scope/ref.
       parameters:
         - {in: query, name: targetType, required: true, schema: {type: string, enum: [skill, flow]}}
         - {in: query, name: targetName, required: true, schema: {type: string}}
         - {in: query, name: targetVisibility, required: true, schema: {type: string, enum: [public, private]}}
         - {in: query, name: dependentVisibility, required: true, schema: {type: string, enum: [public, private]}}
         - {in: query, name: ref, required: true, schema: {type: string}}
-      responses: {'200': {description: Matching reverse dependencies from the requested Registry scope.}, '400': {description: Invalid target identity, Registry scope, or ref.}, '401': {description: Unauthorized}}
+      responses: {'200': {description: Matching reverse dependencies}}
   /api/plan-registry-reference-migration:
     post:
       operationId: planRegistryReferenceMigration
@@ -109,21 +119,11 @@ paths:
               required: [targetType, from, to, dependentVisibility, dependentRef]
               properties:
                 targetType: {type: string, enum: [skill, flow]}
-                from: &migrationEndpoint
-                  type: object
-                  additionalProperties: false
-                  required: [name, visibility, ref]
-                  properties:
-                    name: {type: string}
-                    visibility: {type: string, enum: [public, private]}
-                    ref: {type: string}
+                from: &migrationEndpoint {type: object, additionalProperties: false, required: [name, visibility, ref], properties: {name: {type: string}, visibility: {type: string, enum: [public, private]}, ref: {type: string}}}
                 to: *migrationEndpoint
                 dependentVisibility: {type: string, enum: [public, private]}
                 dependentRef: {type: string}
-      responses:
-        '200': {description: Migration plan including expectedFiles [{path, sha}].}
-        '400': {description: Invalid migration request.}
-        '401': {description: Unauthorized}
+      responses: {'200': {description: Migration plan}}
   /api/apply-registry-reference-migration:
     post:
       operationId: applyRegistryReferenceMigration
@@ -141,128 +141,53 @@ paths:
                 to: *migrationEndpoint
                 dependentVisibility: {type: string, enum: [public, private]}
                 dependentRef: {type: string}
-                expectedFiles:
-                  type: array
-                  description: Plan-derived dependent manifest paths and expected Git blob SHAs.
-                  items:
-                    type: object
-                    additionalProperties: false
-                    required: [path, sha]
-                    properties:
-                      path: {type: string}
-                      sha: {type: string}
+                expectedFiles: {type: array, items: {type: object, required: [path, sha], properties: {path: {type: string}, sha: {type: string}}}}
                 message: {type: string}
-      responses:
-        '200': {description: Apply result including migrated count, post-write validation, and remaining old dependencies.}
-        '400': {description: Invalid migration request.}
-        '401': {description: Unauthorized}
+      responses: {'200': {description: Apply result}}
   /api/skill-history:
-    get:
-      operationId: getSkillHistory
-      summary: Get recent commits touching a Skill or Factory module.
-      parameters:
-        - {in: query, name: target, required: false, schema: {type: string, enum: [skill, flow, suite, factory], default: skill}}
-        - {in: query, name: visibility, required: false, schema: {type: string, enum: [public, private]}}
-        - {in: query, name: name, required: true, schema: {type: string}}
-        - {in: query, name: ref, required: false, schema: {type: string}}
-      responses: {'200': {description: Commit history}}
+    get: {operationId: getSkillHistory, summary: Get recent commits touching a Skill or Factory module., parameters: [{in: query, name: target, required: false, schema: {type: string, enum: [skill, flow, suite, factory], default: skill}}, {in: query, name: visibility, required: false, schema: {type: string, enum: [public, private]}}, {in: query, name: name, required: true, schema: {type: string}}, *qRef], responses: {'200': {description: Commit history}}}
   /api/registry-history:
-    get:
-      operationId: getRegistryHistory
-      summary: Get recent commits touching a Skill, Flow, Suite, or Factory module.
-      parameters:
-        - {in: query, name: target, required: true, schema: {type: string, enum: [skill, flow, suite, factory]}}
-        - {in: query, name: visibility, required: false, schema: {type: string, enum: [public, private]}}
-        - {in: query, name: name, required: true, schema: {type: string}}
-        - {in: query, name: ref, required: false, schema: {type: string}}
-      responses: {'200': {description: Commit history}}
+    get: {operationId: getRegistryHistory, summary: Get recent commits touching a Skill, Flow, Suite, or Factory module., parameters: [{in: query, name: target, required: true, schema: {type: string, enum: [skill, flow, suite, factory]}}, {in: query, name: visibility, required: false, schema: {type: string, enum: [public, private]}}, {in: query, name: name, required: true, schema: {type: string}}, *qRef], responses: {'200': {description: Commit history}}}
   /api/create-branch:
     post:
       operationId: createChangeBranch
-      summary: Create a change branch in the Factory, public Skills, or private Skills repository.
-      requestBody:
-        required: true
-        content: {application/json: {schema: {type: object, required: [branch], properties: {target: {type: string, enum: [skill, registry, factory], default: skill}, visibility: {type: string, enum: [public, private]}, branch: {type: string}, base: {type: string, default: main}}}}}
-      responses: {'200': {description: Branch created}}
+      summary: Create or safely reuse a change branch.
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [branch], properties: {target: {type: string, enum: [skill, registry, factory], default: skill}, visibility: {type: string, enum: [public, private]}, branch: {type: string}, base: {type: string, default: main}}}}}}
+      responses: {'200': {description: Created or already exists}}
   /api/write-files:
     post:
       operationId: writeRegistryFiles
-      summary: Create or replace UTF-8 text files on an existing change branch.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [branch, files]
-              properties:
-                target: {type: string, enum: [skill, registry, factory], default: skill}
-                visibility: {type: string, enum: [public, private]}
-                branch: {type: string}
-                message: {type: string}
-                files: {type: array, minItems: 1, items: {type: object, required: [path, content], properties: {path: {type: string}, content: {type: string}}}}
-      responses: {'200': {description: Files written}}
+      summary: Preflight then create or replace UTF-8 text files on a change branch.
+      requestBody: *writeBody
+      responses: {'200': {description: Files written}, '409': {description: Conflict or stale SHA}}
   /api/delete-file:
     post:
       operationId: deleteRegistryFile
-      summary: Delete one text file from an existing change branch. Primary Skill/Flow manifests use dependency-aware fail-closed preflight.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [branch, path]
-              properties:
-                target: {type: string, enum: [skill, registry, factory], default: skill}
-                visibility: {type: string, enum: [public, private]}
-                branch: {type: string}
-                path: {type: string}
-                message: {type: string}
-                dependencyRefs:
-                  type: object
-                  additionalProperties: false
-                  properties:
-                    privateRef:
-                      type: string
-                      description: Required for public primary Skill/Flow deletion; ref used to scan private Registry dependents.
-      responses:
-        '200': {description: File deleted}
-        '409': {description: Deletion blocked because dependency preflight is incomplete or dependents exist.}
+      summary: Delete one text file from an existing change branch with dependency-aware fail-closed preflight.
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [branch, path], properties: {target: {type: string, enum: [skill, registry, factory], default: skill}, visibility: {type: string, enum: [public, private]}, branch: {type: string}, path: {type: string}, message: {type: string}, dependencyRefs: {type: object, properties: {privateRef: {type: string}}}}}}}}
+      responses: {'200': {description: File deleted}, '409': {description: Dependency conflict}}
   /api/validate-skill:
-    post:
-      operationId: validateSkill
-      summary: Validate proposed SKILL.md text and scan for obvious secrets before writing.
-      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [skillMd], properties: {skillMd: {type: string}}}}}}
-      responses: {'200': {description: Validation result}}
+    post: {operationId: validateSkill, summary: Validate proposed SKILL.md text and scan for obvious secrets., requestBody: {required: true, content: {application/json: {schema: {type: object, required: [skillMd], properties: {skillMd: {type: string}}}}}}, responses: {'200': {description: Validation result}}}
   /api/validate-flow:
-    post:
-      operationId: validateFlow
-      summary: Validate a proposed or stored FLOW.json.
-      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [visibility, name], properties: {visibility: {type: string, enum: [public, private]}, name: {type: string}, ref: {type: string}, flowJson: {type: string}}}}}}
-      responses: {'200': {description: Validation result}}
+    post: {operationId: validateFlow, summary: Validate a proposed or stored FLOW.json., requestBody: {required: true, content: {application/json: {schema: {type: object, required: [visibility, name], properties: {visibility: {type: string, enum: [public, private]}, name: {type: string}, ref: {type: string}, flowJson: {type: string}}}}}}, responses: {'200': {description: Validation result}}}
   /api/validate-suite:
-    post:
-      operationId: validateSuite
-      summary: Validate a proposed or stored SUITE.json.
-      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [visibility, name], properties: {visibility: {type: string, enum: [public, private]}, name: {type: string}, ref: {type: string}, suiteJson: {type: string}}}}}}
-      responses: {'200': {description: Validation result}}
+    post: {operationId: validateSuite, summary: Validate a proposed or stored SUITE.json., requestBody: {required: true, content: {application/json: {schema: {type: object, required: [visibility, name], properties: {visibility: {type: string, enum: [public, private]}, name: {type: string}, ref: {type: string}, suiteJson: {type: string}}}}}}, responses: {'200': {description: Validation result}}}
   /api/compare:
     get:
       operationId: compareChangeBranch
-      summary: Compare a change branch against its base and return changed files and patches.
+      summary: Compare a change branch against its base and return stale/ahead/behind plus changed files.
       parameters:
         - {in: query, name: target, required: false, schema: {type: string, enum: [skill, registry, factory], default: skill}}
         - {in: query, name: visibility, required: false, schema: {type: string, enum: [public, private]}}
         - {in: query, name: head, required: true, schema: {type: string}}
         - {in: query, name: base, required: false, schema: {type: string, default: main}}
-      responses: {'200': {description: Diff summary}}
+      responses: {'200': {description: Diff summary with stale flag}}
   /api/pull-request:
     post:
       operationId: openSkillPullRequest
-      summary: Open a pull request from a prepared change branch.
-      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [head, title], properties: {target: {type: string, enum: [skill, registry, factory], default: skill}, visibility: {type: string, enum: [public, private]}, head: {type: string}, base: {type: string, default: main}, title: {type: string}, body: {type: string}}}}}}
-      responses: {'200': {description: Pull request opened}}
+      summary: Open a pull request after stale-branch guard.
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [head, title], properties: {target: {type: string, enum: [skill, registry, factory], default: skill}, visibility: {type: string, enum: [public, private]}, head: {type: string}, base: {type: string, default: main}, title: {type: string}, body: {type: string}, allowStale: {type: boolean, default: false}}}}}}
+      responses: {'200': {description: Pull request opened}, '409': {description: Stale branch refused}}
 components:
   securitySchemes:
     bearerAuth: {type: http, scheme: bearer}
