@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { requireAuth, json, errorResponse, readJson } from '../lib/http.js';
 import { config, repoForVisibility } from '../lib/config.js';
-import { createBranch, putTextFile, deleteTextFile, compare, createPullRequest, listCommitsForPath, getTextFile, getRepo, getAuthenticatedUser, getRateLimit, getBranch, deleteBranch, assertRefExists } from '../lib/github.js';
+import { createBranch, putTextFile, deleteTextFile, compare, createPullRequest, listCommitsForPath, getTextFile, getRepo, getAuthenticatedUser, getRateLimit, deleteBranch, assertRefExists } from '../lib/github.js';
 import { getFactoryModule, listSkills, searchSkills, getSkill, getSkillFile, validateSkillText } from '../lib/skills.js';
 import { assertRegistryPath, listFlows, searchFlows, getFlow, listSuites, searchSuites, getSuite, findRegistryDependents, preflightRegistryDelete, validateFlowPackage, validateSuitePackage } from '../lib/registry.js';
 import { planRegistryReferenceMigration, applyRegistryReferenceMigration } from '../lib/migration.js';
@@ -80,7 +80,6 @@ async function handleRegistryDependents(url) { const targetType=url.searchParams
 async function handlePlanRegistryReferenceMigration(request) { requirePost(request); return json(await planRegistryReferenceMigration(await readJson(request))); }
 async function handleApplyRegistryReferenceMigration(request) { requirePost(request); return json(await applyRegistryReferenceMigration(await readJson(request))); }
 async function handleRegistryHistory(url) { const target=url.searchParams.get('target'), visibility=url.searchParams.get('visibility'), name=url.searchParams.get('name'); if(!name) throw validationError('name is required'); const normalizedTarget=target||'skill'; if(!['skill','flow','suite','factory'].includes(normalizedTarget)) throw validationError('target must be skill, flow, suite, or factory'); const repo=normalizedTarget==='factory'?config().factoryRepo:repoForVisibility(visibility); const basePath={skill:`skills/${name}`,flow:`flows/${name}`,suite:`suites/${name}`,factory:`factory/${name}`}[normalizedTarget]; const commits=await listCommitsForPath(repo,basePath,url.searchParams.get('ref')||undefined); return json({ok:true,commits:commits.map(c=>({sha:c.sha,message:c.commit?.message,date:c.commit?.author?.date,url:c.html_url}))}); }
-
 async function handleCreateBranch(request) { requirePost(request); const body=await readJson(request); const repo=body.target==='factory'?config().factoryRepo:repoForVisibility(body.visibility); const branch=body.branch; const result=await createBranch(repo,branch,body.base||config().baseBranch); return json({ok:true,repository:`${config().owner}/${repo}`,branch,status:result.status}); }
 
 async function preflightFiles(body, repo) {
@@ -109,9 +108,35 @@ async function handleCompare(url) { const target=url.searchParams.get('target'),
 async function handlePullRequest(request) { requirePost(request); const body=await readJson(request);const repo=body.target==='factory'?config().factoryRepo:repoForVisibility(body.visibility),base=body.base||config().baseBranch,diff=await compare(repo,base,body.head);if((diff.behind_by||0)>0&&!body.allowStale)throw dependencyConflict(`Head branch is behind ${base}; refusing PR by default`,{repo,ref:body.head,operation:'create_pull_request',stage:'stale_check'});const pr=await createPullRequest(repo,body.head,body.title,body.body,base);return json({ok:true,repository:`${config().owner}/${repo}`,number:pr.number,title:pr.title,url:pr.html_url}); }
 
 async function diagnoseRepo(label, repo) { const result={label,repository:`${config().owner}/${repo}`,ok:false,baseRef:config().baseBranch,permissions:null}; try{const metadata=await getRepo(repo);result.permissions=metadata.permissions||null;await assertRefExists(repo,config().baseBranch);result.ok=true;}catch(e){result.error={code:e.code||'INTERNAL_ERROR',message:e.message};}return result; }
-async function handleDiagnostics() { let auth={ok:false};try{const u=await getAuthenticatedUser();auth={ok:true,login:u.login||null};}catch(e){auth={ok:false,error:{code:e.code||'INTERNAL_ERROR',message:e.message}};} let rateLimit=null;try{rateLimit=await getRateLimit();}catch(e){rateLimit={error:{code:e.code||'INTERNAL_ERROR',message:e.message}};} const c=config(); const repositories=await Promise.all([diagnoseRepo('factory',c.factoryRepo),diagnoseRepo('public_registry',c.publicRepo),diagnoseRepo('private_registry',c.privateRepo)]); return json({ok:auth.ok&&repositories.every(r=>r.ok),version:API_VERSION,authentication:auth,baseRef:c.baseBranch,rateLimit,repositories}); }
-async function handleReadyz() { const d=await handleDiagnostics(); const body=await d.json(); return json({ok:body.ok,status:body.ok?'ready':'not_ready',checks:{authentication:body.authentication,repositories:body.repositories.map(r=>({label:r.label,ok:r.ok,error:r.error||null})),rateLimit:body.rateLimit}},body.ok?200:503); }
-async function handleDiagnosticsWriteTest(request) { requirePost(request); const body=await readJson(request); if(body.confirm!==true)throw validationError('confirm:true is required for diagnostics write-test'); const c=config(),repo=c.factoryRepo,branch=`diagnostics/write-test-${randomUUID()}`,path=`diagnostics/${randomUUID()}.txt`,cleanup={file:null,branch:null};let write=null,readBack=null;try{await createBranch(repo,branch,c.baseBranch);write=await putTextFile(repo,path,`operation=${context().operationId}\n`,branch,'Diagnostics write test',null);readBack=await getTextFile(repo,path,branch);await deleteTextFile(repo,path,branch,'Diagnostics cleanup');cleanup.file='deleted';return json({ok:readBack.text===`operation=${context().operationId}\n`,repository:`${c.owner}/${repo}`,branch,path,writeStatus:write.status||'applied',readBack:true,cleanup});}finally{try{cleanup.branch=(await deleteBranch(repo,branch)).status;}catch(e){cleanup.branch=`failed:${e.code||'INTERNAL_ERROR'}`;}logEvent('diagnostics_write_test_cleanup',{repo,branch,path,cleanup});} }
+async function diagnosticsData() { let auth={ok:false};try{const u=await getAuthenticatedUser();auth={ok:true,login:u.login||null};}catch(e){auth={ok:false,error:{code:e.code||'INTERNAL_ERROR',message:e.message}};} let rateLimit=null;try{rateLimit=await getRateLimit();}catch(e){rateLimit={error:{code:e.code||'INTERNAL_ERROR',message:e.message}};} const c=config(); const repositories=await Promise.all([diagnoseRepo('factory',c.factoryRepo),diagnoseRepo('public_registry',c.publicRepo),diagnoseRepo('private_registry',c.privateRepo)]); return {ok:auth.ok&&repositories.every(r=>r.ok),version:API_VERSION,authentication:auth,baseRef:c.baseBranch,rateLimit,repositories}; }
+async function handleDiagnostics() { return json(await diagnosticsData()); }
+async function handleReadyz() { const body=await diagnosticsData(); return json({ok:body.ok,status:body.ok?'ready':'not_ready',checks:{authentication:body.authentication,repositories:body.repositories.map(r=>({label:r.label,ok:r.ok,error:r.error||null})),rateLimit:body.rateLimit}},body.ok?200:503); }
+async function handleDiagnosticsWriteTest(request) {
+  requirePost(request);
+  const body=await readJson(request);
+  if(body.confirm!==true) throw validationError('confirm:true is required for diagnostics write-test');
+  const c=config(),repo=c.factoryRepo,branch=`diagnostics/write-test-${randomUUID()}`,path=`diagnostics/${randomUUID()}.txt`,expected=`operation=${context().operationId}\n`;
+  const cleanup={file:'not_started',branch:'not_started'};
+  let writeStatus=null,readBack=false,primaryError=null;
+  try {
+    await createBranch(repo,branch,c.baseBranch);
+    const write=await putTextFile(repo,path,expected,branch,'Diagnostics write test',null);
+    writeStatus=write.status||'applied';
+    const file=await getTextFile(repo,path,branch);
+    readBack=file.text===expected;
+    await deleteTextFile(repo,path,branch,'Diagnostics cleanup');
+    cleanup.file='deleted';
+  } catch (e) {
+    primaryError=e;
+    if(cleanup.file==='not_started') cleanup.file='incomplete';
+  } finally {
+    try { cleanup.branch=(await deleteBranch(repo,branch)).status; }
+    catch(e) { cleanup.branch=`failed:${e.code||'INTERNAL_ERROR'}`; }
+    logEvent('diagnostics_write_test_cleanup',{repo,branch,path,cleanup});
+  }
+  if(primaryError) return json({ok:false,error:{code:primaryError.code||'INTERNAL_ERROR',message:primaryError.message},repository:`${c.owner}/${repo}`,branch,path,writeStatus,readBack,cleanup},primaryError.status||500);
+  return json({ok:readBack,repository:`${c.owner}/${repo}`,branch,path,writeStatus,readBack,cleanup});
+}
 function requirePost(request){if(request.method!=='POST')throw validationError('POST required');} function requireGet(request){if(request.method!=='GET')throw validationError('GET required');}
 function assertSafePath(path){const s=path.split('/');if(s.includes('..')||path.startsWith('/')||path.includes('\\'))throw validationError(`Invalid path: ${path}`);}
 function assertAllowedFactoryPath(path){if(!path)throw validationError('path is required');assertSafePath(path);const denied=new Set(['.env','.env.local','.env.production','.env.development','.env.test','credentials.json','secrets.json']);if(denied.has(path)||path.startsWith('.env.'))throw validationError('Reading secret files is not allowed');const prefixes=['factory/','api/','lib/','gpt/','schemas/','templates/','evals/','docs/'];const roots=new Set(['README.md','package.json','vercel.json','.env.example','.gitignore']);if(!roots.has(path)&&!prefixes.some(p=>path.startsWith(p)))throw validationError('Path is outside the readable Factory source tree');}
