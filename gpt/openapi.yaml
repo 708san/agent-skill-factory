@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Agent Skill Factory Registry API
-  version: 0.7.0
-  description: Narrow GitHub-backed API for a web-only Agent Skill Factory with first-class Flow/Suite Registry objects and dependency-aware primary Skill/Flow delete preflight.
+  version: 0.8.0
+  description: Narrow GitHub-backed API for a web-only Agent Skill Factory with first-class Flow/Suite Registry objects, dependency-aware primary Skill/Flow delete preflight, and explicit Registry reference migration.
 servers:
   - url: https://YOUR-VERCEL-DOMAIN.vercel.app
 paths:
@@ -96,6 +96,60 @@ paths:
         - {in: query, name: dependentVisibility, required: true, schema: {type: string, enum: [public, private]}}
         - {in: query, name: ref, required: true, schema: {type: string}}
       responses: {'200': {description: Matching reverse dependencies from the requested Registry scope.}, '400': {description: Invalid target identity, Registry scope, or ref.}, '401': {description: Unauthorized}}
+  /api/plan-registry-reference-migration:
+    post:
+      operationId: planRegistryReferenceMigration
+      summary: Plan a read-only structural Registry reference migration.
+      requestBody: &migrationPlanBody
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [targetType, from, to, dependentVisibility, dependentRef]
+              properties:
+                targetType: {type: string, enum: [skill, flow]}
+                from: &migrationEndpoint
+                  type: object
+                  additionalProperties: false
+                  required: [name, visibility, ref]
+                  properties:
+                    name: {type: string}
+                    visibility: {type: string, enum: [public, private]}
+                    ref: {type: string}
+                to: *migrationEndpoint
+                dependentVisibility: {type: string, enum: [public, private]}
+                dependentRef: {type: string}
+      responses:
+        '200': {description: Migration plan including destination validation, dependents, structural changes, validation previews, and expected file SHAs.}
+        '400': {description: Invalid migration request.}
+        '401': {description: Unauthorized}
+  /api/apply-registry-reference-migration:
+    post:
+      operationId: applyRegistryReferenceMigration
+      summary: Apply a previously planned structural Registry reference migration with SHA protection.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [targetType, from, to, dependentVisibility, dependentRef, expectedFiles]
+              properties:
+                targetType: {type: string, enum: [skill, flow]}
+                from: *migrationEndpoint
+                to: *migrationEndpoint
+                dependentVisibility: {type: string, enum: [public, private]}
+                dependentRef: {type: string}
+                expectedFiles:
+                  type: object
+                  additionalProperties: {type: string}
+                  description: Map of dependent manifest path to expected Git blob SHA returned by the plan.
+                message: {type: string}
+      responses:
+        '200': {description: Apply result including migrated count, post-write validation, and remaining old dependencies.}
+        '400': {description: Invalid migration request.}
+        '401': {description: Unauthorized}
   /api/skill-history:
     get:
       operationId: getSkillHistory
