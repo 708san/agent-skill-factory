@@ -13,5 +13,10 @@ API version: 0.9.0
 | stale SHA | write with outdated `expectedSha` | HTTP 409 `STALE_SHA`; no write |
 | rate limit | GitHub 429 or exhausted rate-limit metadata | retry only bounded 429 path, then `RATE_LIMITED` with safe rate metadata |
 | timeout | induced GitHub read/write timeout | bounded retry, then `UPSTREAM_TIMEOUT`; correlation IDs retained |
+| compact compare default | Compare a branch with a large multi-file diff without `includePatch` | response succeeds compactly and each file contains filename/status/additions/deletions only; no `patch` field |
+| compare patch opt-in | Repeat compare with `includePatch=true` | patch is present only for files where GitHub supplies patch text |
+| structured error correlation body | Trigger any authenticated API error | `ok:false`; `error.requestId` is present and matches `x-request-id`; mutation errors also carry `error.operationId` matching `x-operation-id` |
+| mutation operation body | Run any mutation endpoint successfully | top-level `operationId` is present and matches `x-operation-id` |
+| runtime semantics preserved | Inspect branch `gpt/INSTRUCTIONS.md` against main/orchestrator semantics | exact/discover/recommend/compose/ordinary-meta, Flow routing, Suite discovery scope, User control, Progressive Disclosure, public/private safety, and create/audit/refactor/split/merge/publish/rollback remain present |
 
-Additional assertions: 401/403/404/conflict are not blind-retried; 5xx/network are bounded-retried; compare includes `stale`; PR defaults to refusal when `behindBy > 0`; diagnostics write-test is never invoked by read-only diagnostics and reports branch cleanup.
+Additional assertions: 401/403/404/conflict are not blind-retried; 5xx/network are bounded-retried; compare includes `stale`; PR defaults to refusal when `behindBy > 0`; diagnostics write-test is never invoked by read-only diagnostics and reports branch cleanup; default compare must not return file patches.
