@@ -86,19 +86,107 @@ async function handleCreateBranch(request) { requirePost(request); const body=aw
 async function preflightFiles(body, repo) {
   if (!body.branch) throw validationError('branch is required', { repo, operation: 'preflight', stage: 'validation' });
   if (!Array.isArray(body.files) || !body.files.length) throw validationError('files[] is required', { repo, ref: body.branch, operation: 'preflight', stage: 'validation' });
-  const checks=[];
+
+  const overlay = new Set();
+  const seenPaths = new Set();
   for (const file of body.files) {
     if (!file.path || typeof file.content !== 'string') throw validationError('Each file needs path and content', { repo, ref: body.branch, operation: 'preflight', stage: 'validation' });
+    if (seenPaths.has(file.path)) throw validationError(`Duplicate file path in batch: ${file.path}`, { repo, ref: body.branch, path: file.path, operation: 'preflight', stage: 'validation' });
+    seenPaths.add(file.path);
     assertSafePath(file.path);
+    if (Object.prototype.hasOwnProperty.call(file, 'expectedSha') && file.expectedSha !== null && typeof file.expectedSha !== 'string') {
+      throw validationError(`expectedSha must be a string or null: ${file.path}`, { repo, ref: body.branch, path: file.path, operation: 'preflight', stage: 'expected_sha_validation' });
+    }
     if (body.target !== 'factory') assertRegistryPath(file.path,file.content);
     const sec=scanSecrets(file.content); if(!sec.ok) throw secretDetected(`Secret-like content detected in ${file.path}`, {repo,ref:body.branch,path:file.path,operation:'preflight',stage:'secret_scan'});
-    if (file.path.endsWith('/SKILL.md')) { const v=validateSkillText(file.content); if(!v.ok) throw validationError(`Invalid SKILL.md: ${file.path}`, {repo,ref:body.branch,path:file.path,operation:'preflight',stage:'skill_validation'}); }
-    const flow=file.path.match(/^flows\/([^/]+)\/FLOW\.json$/); if(flow){ const v=await validateFlowPackage({visibility:body.visibility,name:flow[1],ref:body.branch,flowJson:file.content}); if(!v.ok) throw validationError(`Invalid FLOW.json: ${file.path}: ${v.errors.join('; ')}`, {repo,ref:body.branch,path:file.path,operation:'preflight',stage:'flow_validation'}); }
-    const suite=file.path.match(/^suites\/([^/]+)\/SUITE\.json$/); if(suite){ const v=await validateSuitePackage({visibility:body.visibility,name:suite[1],ref:body.branch,suiteJson:file.content}); if(!v.ok) throw validationError(`Invalid SUITE.json: ${file.path}: ${v.errors.join('; ')}`, {repo,ref:body.branch,path:file.path,operation:'preflight',stage:'suite_validation'}); }
-    checks.push({path:file.path,ok:true});
+    if (file.path.endsWith('/SKILL.md')) {
+      const v=validateSkillText(file.content);
+      if(!v.ok) throw validationError(`Invalid SKILL.md: ${file.path}`, {repo,ref:body.branch,path:file.path,operation:'preflight',stage:'skill_validation'});
+    }
+    if (body.target !== 'factory') addBatchOverlayEntry(overlay, body.visibility, file.path);
+  }
+
+  const checks=[];
+  for (const file of body.files) checks.push(await inspectFilePrecondition(file, body, repo));
+
+  if (body.target !== 'factory') {
+    for (const file of body.files) {
+      const flow=file.path.match(/^flows\/([^/]+)\/FLOW\.json$/);
+      if(flow){
+        const raw=await validateFlowPackage({visibility:body.visibility,name:flow[1],ref:body.branch,flowJson:file.content});
+        const v=resolveFlowValidationAgainstOverlay(raw,file.content,body.visibility,overlay);
+        if(!v.ok) throw validationError(`Invalid FLOW.json: ${file.path}: ${v.errors.join('; ')}`, {repo,ref:body.branch,path:file.path,operation:'preflight',stage:'flow_validation'});
+      }
+      const suite=file.path.match(/^suites\/([^/]+)\/SUITE\.json$/);
+      if(suite){
+        const raw=await validateSuitePackage({visibility:body.visibility,name:suite[1],ref:body.branch,suiteJson:file.content});
+        const v=resolveSuiteValidationAgainstOverlay(raw,file.content,body.visibility,overlay);
+        if(!v.ok) throw validationError(`Invalid SUITE.json: ${file.path}: ${v.errors.join('; ')}`, {repo,ref:body.branch,path:file.path,operation:'preflight',stage:'suite_validation'});
+      }
+    }
   }
   return checks;
 }
+
+async function inspectFilePrecondition(file, body, repo) {
+  let current=null;
+  try { current=await getTextFile(repo,file.path,body.branch); }
+  catch(e){ if(e.code!=='FILE_NOT_FOUND') throw e; }
+  const hasExpected=Object.prototype.hasOwnProperty.call(file,'expectedSha');
+  if(hasExpected && file.expectedSha===null && current) {
+    throw new FactoryError('FILE_CONFLICT','File already exists; expectedSha:null only permits creation',{status:409,repo,ref:body.branch,path:file.path,operation:'preflight',stage:'expected_sha_precondition'});
+  }
+  if(hasExpected && typeof file.expectedSha==='string' && !current) {
+    throw new FactoryError('STALE_SHA','Expected SHA supplied but file does not exist',{status:409,repo,ref:body.branch,path:file.path,operation:'preflight',stage:'expected_sha_precondition'});
+  }
+  if(hasExpected && typeof file.expectedSha==='string' && current?.sha!==file.expectedSha) {
+    throw new FactoryError('STALE_SHA','Expected SHA does not match current file SHA',{status:409,repo,ref:body.branch,path:file.path,operation:'preflight',stage:'expected_sha_precondition'});
+  }
+  return {path:file.path,ok:true,exists:Boolean(current),currentSha:current?.sha||null,status:current?.text===file.content?'already_applied':'applied'};
+}
+
+function addBatchOverlayEntry(overlay, visibility, path) {
+  let match=path.match(/^skills\/([^/]+)\/SKILL\.md$/);
+  if(match) return overlay.add(`${visibility}:skill:${match[1]}`);
+  match=path.match(/^flows\/([^/]+)\/FLOW\.json$/);
+  if(match) overlay.add(`${visibility}:flow:${match[1]}`);
+}
+
+function resolveFlowValidationAgainstOverlay(validation, content, ownerVisibility, overlay) {
+  const errors=[...(validation.errors||[])];
+  let manifest;
+  try { manifest=JSON.parse(content); } catch { return validation; }
+  for(const step of manifest.steps||[]) {
+    if(step?.type!=='exact_skill'||!step.skill?.name) continue;
+    const visibility=step.skill.visibility||ownerVisibility;
+    if(!overlay.has(`${visibility}:skill:${step.skill.name}`)) continue;
+    removeValidationError(errors,`Exact Skill reference not found or unreadable: ${visibility}/${step.skill.name}`);
+  }
+  return {...validation,errors,ok:errors.length===0};
+}
+
+function resolveSuiteValidationAgainstOverlay(validation, content, ownerVisibility, overlay) {
+  const errors=[...(validation.errors||[])];
+  let manifest;
+  try { manifest=JSON.parse(content); } catch { return validation; }
+  for(const member of manifest.members?.skills||[]) {
+    if(!member?.name) continue;
+    const visibility=member.visibility||ownerVisibility;
+    if(overlay.has(`${visibility}:skill:${member.name}`)) removeValidationError(errors,`Skill member not found or unreadable: ${visibility}/${member.name}`);
+  }
+  for(const member of manifest.members?.flows||[]) {
+    if(!member?.name) continue;
+    const visibility=member.visibility||ownerVisibility;
+    if(overlay.has(`${visibility}:flow:${member.name}`)) removeValidationError(errors,`Flow member not found or unreadable: ${visibility}/${member.name}`);
+  }
+  return {...validation,errors,ok:errors.length===0};
+}
+
+function removeValidationError(errors, message) {
+  const index=errors.indexOf(message);
+  if(index>=0) errors.splice(index,1);
+}
+
 async function handlePreflight(request) { requirePost(request); const body=await readJson(request); const repo=body.target==='factory'?config().factoryRepo:repoForVisibility(body.visibility); const files=await preflightFiles(body,repo); return json({ok:true,repository:`${config().owner}/${repo}`,branch:body.branch,files}); }
 async function handleWriteFiles(request) { requirePost(request); const body=await readJson(request); const repo=body.target==='factory'?config().factoryRepo:repoForVisibility(body.visibility); await preflightFiles(body,repo); const results=[]; for(const file of body.files){ const result=await putTextFile(repo,file.path,file.content,body.branch,body.message||`Update ${file.path}`,Object.prototype.hasOwnProperty.call(file,'expectedSha')?file.expectedSha:undefined); results.push({path:file.path,status:result.status||'applied',commit:result.commit?.sha||null,contentSha:result.content?.sha||null}); } return json({ok:true,repository:`${config().owner}/${repo}`,branch:body.branch,files:results}); }
 async function handleDeleteFile(request) { requirePost(request); const body=await readJson(request); const repo=body.target==='factory'?config().factoryRepo:repoForVisibility(body.visibility); if(!body.path||body.path.includes('..')||body.path.startsWith('/')) throw validationError('Invalid path'); if(body.target!=='factory'){ assertRegistryPath(body.path); const p=await preflightRegistryDelete({path:body.path,visibility:body.visibility,branch:body.branch,dependencyRefs:body.dependencyRefs||{}}); if(p.guarded&&!p.safe) throw dependencyConflict(p.message||p.reason,{repo,ref:body.branch,path:body.path,operation:'delete_file',stage:'dependency_preflight'}); } const result=await deleteTextFile(repo,body.path,body.branch,body.message); return json({ok:true,repository:`${config().owner}/${repo}`,path:body.path,commit:result.commit?.sha}); }
