@@ -175,13 +175,14 @@ paths:
   /api/compare:
     get:
       operationId: compareChangeBranch
-      summary: Compare a change branch against its base and return stale/ahead/behind plus changed files.
+      summary: Compare a change branch against its base. File patches are excluded by default.
       parameters:
         - {in: query, name: target, required: false, schema: {type: string, enum: [skill, registry, factory], default: skill}}
         - {in: query, name: visibility, required: false, schema: {type: string, enum: [public, private]}}
         - {in: query, name: head, required: true, schema: {type: string}}
         - {in: query, name: base, required: false, schema: {type: string, default: main}}
-      responses: {'200': {description: Diff summary with stale flag}}
+        - {in: query, name: includePatch, required: false, schema: {type: boolean, default: false}}
+      responses: {'200': {description: Compact diff summary; patch fields are included only when includePatch=true}}
   /api/pull-request:
     post:
       operationId: openSkillPullRequest
