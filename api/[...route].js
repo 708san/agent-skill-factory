@@ -99,12 +99,29 @@ async function preflightFiles(body, repo) {
   return checks;
 }
 async function handlePreflight(request) { requirePost(request); const body=await readJson(request); const repo=body.target==='factory'?config().factoryRepo:repoForVisibility(body.visibility); const files=await preflightFiles(body,repo); return json({ok:true,repository:`${config().owner}/${repo}`,branch:body.branch,files}); }
-async function handleWriteFiles(request) { requirePost(request); const body=await readJson(request); const repo=body.target==='factory'?config().factoryRepo:repoForVisibility(body.visibility); await preflightFiles(body,repo); const results=[]; for(const file of body.files){ const result=await putTextFile(repo,file.path,file.content,body.branch,body.message||`Update ${file.path}`,Object.prototype.hasOwnProperty.call(file,'expectedSha')?file.expectedSha:undefined); results.push({path:file.path,status:result.status||'applied',commit:result.commit?.sha||null,contentSha:result.content?.sha||null}); } return json({ok:true,repository:`${config().owner}/${repo}`,branch:body.branch,operationId:context().operationId,files:results}); }
+async function handleWriteFiles(request) { requirePost(request); const body=await readJson(request); const repo=body.target==='factory'?config().factoryRepo:repoForVisibility(body.visibility); await preflightFiles(body,repo); const results=[]; for(const file of body.files){ const result=await putTextFile(repo,file.path,file.content,body.branch,body.message||`Update ${file.path}`,Object.prototype.hasOwnProperty.call(file,'expectedSha')?file.expectedSha:undefined); results.push({path:file.path,status:result.status||'applied',commit:result.commit?.sha||null,contentSha:result.content?.sha||null}); } return json({ok:true,repository:`${config().owner}/${repo}`,branch:body.branch,files:results}); }
 async function handleDeleteFile(request) { requirePost(request); const body=await readJson(request); const repo=body.target==='factory'?config().factoryRepo:repoForVisibility(body.visibility); if(!body.path||body.path.includes('..')||body.path.startsWith('/')) throw validationError('Invalid path'); if(body.target!=='factory'){ assertRegistryPath(body.path); const p=await preflightRegistryDelete({path:body.path,visibility:body.visibility,branch:body.branch,dependencyRefs:body.dependencyRefs||{}}); if(p.guarded&&!p.safe) throw dependencyConflict(p.message||p.reason,{repo,ref:body.branch,path:body.path,operation:'delete_file',stage:'dependency_preflight'}); } const result=await deleteTextFile(repo,body.path,body.branch,body.message); return json({ok:true,repository:`${config().owner}/${repo}`,path:body.path,commit:result.commit?.sha}); }
 async function handleValidateSkill(request) { requirePost(request); const body=await readJson(request),structure=validateSkillText(body.skillMd||''),secrets=scanSecrets(body.skillMd||''); return json({ok:structure.ok&&secrets.ok,structure,secrets}); }
 async function handleValidateFlow(request) { requirePost(request); const body=await readJson(request),structure=await validateFlowPackage({visibility:body.visibility,name:body.name,ref:body.ref,flowJson:body.flowJson}),secrets=scanSecrets(body.flowJson||''); return json({ok:structure.ok&&secrets.ok,structure,secrets}); }
 async function handleValidateSuite(request) { requirePost(request); const body=await readJson(request),structure=await validateSuitePackage({visibility:body.visibility,name:body.name,ref:body.ref,suiteJson:body.suiteJson}),secrets=scanSecrets(body.suiteJson||''); return json({ok:structure.ok&&secrets.ok,structure,secrets}); }
-async function handleCompare(url) { const target=url.searchParams.get('target'),visibility=url.searchParams.get('visibility'),head=url.searchParams.get('head'),base=url.searchParams.get('base')||config().baseBranch;if(!head)throw validationError('head is required');const repo=target==='factory'?config().factoryRepo:repoForVisibility(visibility),diff=await compare(repo,base,head);return json({ok:true,repository:`${config().owner}/${repo}`,base,head,status:diff.status,aheadBy:diff.ahead_by,behindBy:diff.behind_by,stale:(diff.behind_by||0)>0,totalCommits:diff.total_commits,files:(diff.files||[]).map(f=>({filename:f.filename,status:f.status,additions:f.additions,deletions:f.deletions,patch:f.patch||null}))}); }
+async function handleCompare(url) {
+  const target=url.searchParams.get('target'),visibility=url.searchParams.get('visibility'),head=url.searchParams.get('head'),base=url.searchParams.get('base')||config().baseBranch;
+  if(!head)throw validationError('head is required');
+  const includePatch=url.searchParams.get('includePatch')==='true';
+  const repo=target==='factory'?config().factoryRepo:repoForVisibility(visibility),diff=await compare(repo,base,head);
+  return json({
+    ok:true,
+    repository:`${config().owner}/${repo}`,
+    base,
+    head,
+    status:diff.status,
+    aheadBy:diff.ahead_by,
+    behindBy:diff.behind_by,
+    stale:(diff.behind_by||0)>0,
+    totalCommits:diff.total_commits,
+    files:(diff.files||[]).map(f=>({filename:f.filename,status:f.status,additions:f.additions,deletions:f.deletions,...(includePatch?{patch:f.patch||null}:{})}))
+  });
+}
 async function handlePullRequest(request) { requirePost(request); const body=await readJson(request);const repo=body.target==='factory'?config().factoryRepo:repoForVisibility(body.visibility),base=body.base||config().baseBranch,diff=await compare(repo,base,body.head);if((diff.behind_by||0)>0&&!body.allowStale)throw dependencyConflict(`Head branch is behind ${base}; refusing PR by default`,{repo,ref:body.head,operation:'create_pull_request',stage:'stale_check'});const pr=await createPullRequest(repo,body.head,body.title,body.body,base);return json({ok:true,repository:`${config().owner}/${repo}`,number:pr.number,title:pr.title,url:pr.html_url}); }
 
 async function diagnoseRepo(label, repo) { const result={label,repository:`${config().owner}/${repo}`,ok:false,baseRef:config().baseBranch,permissions:null}; try{const metadata=await getRepo(repo);result.permissions=metadata.permissions||null;await assertRefExists(repo,config().baseBranch);result.ok=true;}catch(e){result.error={code:e.code||'INTERNAL_ERROR',message:e.message};}return result; }
