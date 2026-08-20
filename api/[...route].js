@@ -25,7 +25,8 @@ export default {
         switch (route) {
           case 'readyz': response = await handleReadyz(); break;
           case 'diagnostics': response = await handleDiagnostics(); break;
-          case 'diagnostics/write-test': response = await handleDiagnosticsWriteTest(request); break;
+          case 'diagnostics/write-test':
+          case 'diagnostics-write-test': response = await handleDiagnosticsWriteTest(request); break;
           case 'preflight': response = await handlePreflight(request); break;
           case 'factory-module': response = await handleFactoryModule(url); break;
           case 'factory-file': response = await handleFactoryFile(url); break;
