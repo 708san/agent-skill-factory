@@ -12,6 +12,10 @@ API version: 0.9.0
 | repositories not independently diagnosable | Run `GET /api/diagnostics` | separate factory/public/private entries with base-ref and reported permissions, no secrets |
 | partial write | Batch valid file followed by invalid/secret file | `POST /api/preflight`/`write-files` rejects before first write |
 | retry duplicate mutation | Retry create-branch and identical write with same operation intent | branch returns `already_exists`; file returns `already_applied`; no duplicate content change |
+| identical branch re-create | Re-run create-branch for a branch whose head equals the requested base current SHA | `already_exists`, `aheadBy:0`, `behindBy:0`, `stale:false` |
+| non-stale descendant re-create | Re-run create-branch for an existing branch descended from the requested base current SHA | `already_exists`; merge base equals requested base current SHA; `aheadBy >= 1`, `behindBy:0`, `stale:false` |
+| stale same-name branch | Re-run create-branch where requested base advanced beyond the existing same-name branch | HTTP 409 `REF_ALREADY_EXISTS`; branch is not reused |
+| diverged same-name branch | Re-run create-branch where existing same-name branch and requested base have diverged from an older merge base | HTTP 409 `REF_ALREADY_EXISTS`; branch is not reused |
 | stale SHA | write with outdated `expectedSha` | HTTP 409 `STALE_SHA`; no write |
 | rate limit | GitHub 429 or exhausted rate-limit metadata | retry only bounded 429 path, then `RATE_LIMITED` with safe rate metadata |
 | timeout | induced GitHub read/write timeout | bounded retry, then `UPSTREAM_TIMEOUT`; correlation IDs retained |
@@ -23,4 +27,4 @@ API version: 0.9.0
 | diagnostics write-test Preview routing | On a Preview deployment call public `POST /api/diagnostics/write-test` with auth and `confirm:true` | Vercel rewrite reaches Factory internal `/api/diagnostics-write-test`; response is from Factory, not Vercel `404 NOT_FOUND` |
 | diagnostics write-test full lifecycle | Run the explicit Preview write-test | create branch → write temporary file → read back → delete file → delete branch completes; `readBack:true`, `cleanup.file:deleted`, `cleanup.branch:deleted`, no temporary branch/file remains |
 
-Additional assertions: 401/403/404/conflict are not blind-retried; 5xx/network are bounded-retried; compare includes `stale`; PR defaults to refusal when `behindBy > 0`; diagnostics write-test is never invoked by read-only diagnostics and reports branch cleanup; default compare must not return file patches. Operation-aware GitHub classification must run before the generic 409/422 fallback for `assert_ref`, `create_branch`, and `put_file`.
+Additional assertions: 401/403/404/conflict are not blind-retried; 5xx/network are bounded-retried; compare includes `stale`; PR defaults to refusal when `behindBy > 0`; diagnostics write-test is never invoked by read-only diagnostics and reports branch cleanup; default compare must not return file patches. Operation-aware GitHub classification must run before the generic 409/422 fallback for `assert_ref`, `create_branch`, and `put_file`. Existing-branch idempotent reuse additionally requires `merge_base_commit.sha === requested base current SHA` and `behindBy === 0`; inability to confirm that relationship must fail closed with HTTP 409 `REF_ALREADY_EXISTS`.
