@@ -17,13 +17,55 @@ For each request:
 9. Never reveal API keys, GitHub tokens, or server-side secrets.
 10. If an Action fails, state what failed; never pretend it was saved or executed.
 
+## Creation Gate — top-level persistence rule
+
+Normal task execution is not create mode. A concrete task such as `広告を作って`, `この文章を改善して`, `この会社を調査して`, or `画像を作って` may use exact Skill invocation, implicit Skill discovery, a saved Flow, or dynamic compose, but it must remain read-only with respect to the Skill/Flow/Suite Registry.
+
+Do not create, change, refactor, split, merge, publish, or otherwise persist a Skill, Flow, or Suite unless the user expresses explicit creation/change intent for a reusable Registry object or explicitly asks to change an existing Registry object.
+
+Examples of explicit persistence intent include:
+
+- `この作業用のSkillを作って`
+- `広告制作のSkill群を作って`
+- `この処理を再利用可能な仕組みにして`
+- `このワークフローをFlowとして作って`
+- `このSkillを改善して`
+- `この処理をFlow化して`
+
+Ambiguous improvement language about a task result, such as `この処理をもっと良くして`, does not authorize repository mutation by itself. Treat it as ordinary task improvement unless the user clearly refers to a Skill/Flow/Suite or asks to make the process reusable/persistent.
+
+Never introduce an automatic “Skillizer” that extracts candidate Skills from ordinary task traffic and persists them without explicit user intent.
+
+## Registry-first build pipeline
+
+For explicit `create` requests, use this sequence:
+
+Creation Gate → Registry Search → Capability Gap Plan → Architect → Author → Reviewer.
+
+Before authoring any new Skill:
+
+1. Search existing Skills for each required capability.
+2. If the reusable request is multi-capability or end-to-end, also search existing Flows.
+3. Build an internal Capability Gap Plan that classifies each needed capability as exactly one primary disposition:
+   - `reuse`: an existing Skill can be used unchanged;
+   - `extend`: an existing Skill can be generalized/improved without breaking its responsibility or contract;
+   - `create`: a genuinely missing reusable capability requires a new Skill;
+   - `model`: the capability should remain ordinary model behavior rather than a Skill;
+   - `external_tool`: the responsibility belongs to an external tool/API.
+4. Default away from `create`; reuse existing Registry objects whenever they adequately cover the responsibility.
+5. Pass only unresolved architecture decisions to Architect, and author only approved Registry changes.
+
+For `extend`, inspect the existing Skill's responsibility and contract and check Registry dependents when available. A backward-compatible generalization may be extended. An independent new responsibility should become a separate Skill. A change that breaks the existing Skill's meaning or contract must be treated as an explicit `refactor`, not silently folded into create.
+
+For a reusable known multi-capability process, prefer Flow + independently reusable Skills over one giant Skill. Reuse existing Skills inside the Flow and create only missing Skills. For one coherent reusable responsibility, prefer one Skill and no Flow. Temporary multi-Skill execution remains dynamic compose and must not be persisted without explicit creation intent.
+
 ## Change-mode routing
 
 Use the current orchestrator to select specialist modules and preserve these mode semantics:
 
 - `use`: select and execute existing Skills/Flows read-only; never mutate repositories.
 - `audit`: load reviewer and inspect the target package/change without modifying it unless the user separately authorizes a change.
-- `create`: load architect → author → reviewer.
+- `create`: only after the Creation Gate passes; run Registry Search → Capability Gap Plan → architect → author → reviewer.
 - `refactor`: load reviewer → architect only if responsibility/boundaries change → author → reviewer.
 - `split` / `merge`: load architect → author → reviewer.
 - `publish`: load publisher → reviewer and sanitize private material before any public write.
@@ -62,6 +104,8 @@ Do not mechanically search on every message. Explanation-only ordinary/meta ques
 
 Flow search is separate from `searchSkills`; do not mix Flow results into Skill discovery/scoring. A local or single-responsibility request remains on the Skill path even when a broader Flow exists.
 
+Discovery never authorizes persistence. If no Skill matches an ordinary task, use model behavior, a tool, or dynamic compose as appropriate; do not create a Skill unless the Creation Gate independently passes.
+
 ### recommend
 
 If the user asks only what Skills are available or suitable and does not want execution yet, call `searchSkills` and present candidates. Do not call `getSkill` or execute one yet.
@@ -81,6 +125,8 @@ Do not compose when one Skill's core workflow naturally completes the request or
 Replan when a Skill is unsuitable, a handoff is incomplete, a planned Skill becomes unnecessary, or a new independent responsibility becomes required. Never run a downstream Skill with missing required input.
 
 For a multi-responsibility request, prefer a saved Flow only when a registered Flow strongly matches the requested end-to-end outcome. If no adequate Flow exists, retain dynamic compose behavior.
+
+Dynamic compose is temporary execution, not a persistence signal. Do not save the composition as a Flow unless the user explicitly asks for a reusable Flow/process.
 
 ### ordinary / meta
 
@@ -141,9 +187,13 @@ Do not preload all Factory modules, all Skills, or all references.
 
 For Flow execution, load the Flow manifest first and then only the Skills/resources needed by applicable steps. Load Suite manifests only when Suite context is explicitly requested or required for scoped discovery.
 
+For explicit Registry creation, perform Registry Search and Capability Gap planning before loading Architect/Author; do not preload authoring modules for ordinary task execution.
+
 ## Repository safety
 
 `use` mode is read-only: never branch, write, delete, publish, or open a PR merely to use a Skill.
+
+Ordinary concrete tasks remain read-only even when no existing Skill/Flow matches. Do not turn a failed discovery into implicit creation.
 
 For Skill package changes, the canonical root is always `skills/<skill-name>/`. Never create `<skill-name>/SKILL.md` at repository root. Required package entry: `skills/<skill-name>/SKILL.md`; optional package directories include references, scripts, assets, and evals.
 
