@@ -1,32 +1,89 @@
 ---
 name: skill-architect
-description: Decide whether a capability should be a Skill, how many Skills are needed, and how responsibility, contracts, package resources, handoffs, tools, and reuse boundaries should be designed before implementation.
+description: Design Registry-first Skill/Flow/Suite changes after creation intent and Registry gap analysis; decide reuse, extension, creation, model/tool placement, boundaries, contracts, handoffs, and Flow-first multi-capability architecture.
 ---
 
 # Mission
 
-Design the smallest coherent Skill architecture that solves the user's intent without creating a giant Skill or unnecessary micro-Skills.
+Design the smallest coherent Registry change that solves the user's explicit reusable-system intent without creating duplicate Skills, giant Skills, unnecessary micro-Skills, or breaking existing contracts.
 
-Flow and Suite are additional Registry placement choices; they do not weaken the Skill architecture rules below.
+Architect is not the first step of create. It receives a request only after the Creation Gate passes and Registry Search + Capability Gap Plan have been performed by the orchestrator.
+
+# Required inputs from the Registry-first pipeline
+
+Before architecture, require enough evidence to understand:
+
+- explicit creation/change intent;
+- requested reusable outcome;
+- capability decomposition;
+- relevant Skill search results;
+- relevant Flow search results for multi-capability requests;
+- Capability Gap Plan dispositions: `reuse`, `extend`, `create`, `model`, `external_tool`;
+- existing Skill responsibility/contract details for any `extend` candidate;
+- Registry dependents when available and relevant to extension/refactor risk.
+
+If these are materially missing, return to Registry Search/Gap planning instead of defaulting to new Skill authoring.
+
+# Capability placement decisions
+
+For every required capability, confirm or revise one primary disposition:
+
+- `reuse` — an existing Skill adequately owns the responsibility and can be used unchanged;
+- `extend` — an existing Skill can be generalized/improved backward-compatibly while preserving its responsibility and contract;
+- `create` — no existing Skill adequately owns a reusable responsibility, so a new Skill is justified;
+- `model` — ordinary model reasoning/generation is sufficient and should not become Registry code;
+- `external_tool` — external state/action/API belongs to a tool integration rather than a Skill.
+
+Do not treat `create` as the default. Architecture quality includes minimizing persistent Registry growth.
+
+# Extension safety
+
+For every `extend` candidate:
+
+1. inspect the existing Skill's responsibility, trigger/non-trigger semantics, inputs, outputs, quality gate, handoff contract, and failure modes;
+2. inspect dependents with `getRegistryDependents` when available;
+3. identify backward-compatibility obligations;
+4. allow extension only when the proposed behavior remains within the same coherent responsibility;
+5. if the proposed capability is independently reusable or introduces a separate user intent/output, design a separate Skill;
+6. if the change would alter/break existing meaning or contract, classify it as `refactor` and require explicit refactor scope rather than silently changing the Skill inside create.
 
 # Required decisions before authoring
 
 For every create, split, merge, or boundary-changing refactor, decide:
 
-1. whether a Skill is needed at all;
-2. whether the capability is one Skill or multiple Skills;
-3. the boundary among Skill / reference / script / asset / eval / external tool or API;
-4. trigger and non-trigger conditions;
-5. inputs;
-6. outputs;
-7. quality gate;
-8. handoff contract;
-9. failure modes;
-10. reuse potential.
+1. whether a Registry object is needed at all;
+2. whether the capability is `reuse`, `extend`, `create`, `model`, or `external_tool`;
+3. whether the reusable object is one Skill, multiple Skills, a Flow + Skills, or a Suite relationship;
+4. the boundary among Skill / reference / script / asset / eval / external tool or API;
+5. trigger and non-trigger conditions;
+6. inputs;
+7. outputs;
+8. quality gate;
+9. handoff contract;
+10. failure modes;
+11. reuse potential;
+12. compatibility/dependent impact for extensions.
 
 Do not begin authoring until these decisions are sufficiently clear.
 
-For Registry-wide design, first classify whether the reusable object is a Skill, Flow, or Suite. If it is a Skill, retain the complete checklist above. A reusable known multi-Skill execution plan is a Flow; a related capability family/discovery scope is a Suite.
+# Flow-first multi-capability creation
+
+When the user explicitly requests a reusable multi-capability process or “仕組み”:
+
+- single coherent reusable responsibility → one Skill;
+- reusable known multi-capability process → Flow + independently reusable Skills;
+- temporary multi-Skill task execution → dynamic compose, not a persisted Flow.
+
+For Flow + Skills:
+
+1. search and reuse existing Skills wherever possible;
+2. create only the capability gaps;
+3. keep independently reusable responsibilities as separate Skills;
+4. keep orchestration, DAG dependencies, handoffs, conditions, and completion semantics in the Flow;
+5. do not duplicate Skill implementation logic into Flow manifests;
+6. do not create a giant Skill simply because all steps contribute to one business outcome.
+
+If all necessary Skills already exist and only reusable orchestration is missing, create only the Flow. If a matching existing Flow already satisfies the process, prefer reuse and create nothing.
 
 # Boundary rules
 
@@ -40,16 +97,6 @@ Use these heuristics:
 - examples and regression behavior → eval.
 
 Multiple workflow steps alone do not justify multiple Skills. If the steps form one natural responsibility, keep them together. Example: review → rewrite can remain one `human-writing-review` Skill.
-
-Load `references/capability-placement.md` and `references/boundary-rules.md` when placement or split/merge decisions are non-trivial. Load `references/skill-contract.md` when a Skill may participate in multi-Skill composition or its input/output boundary is unclear.
-
-For Registry placement, also use these rules:
-
-- independent reusable capability → Skill;
-- reusable known multi-Skill execution plan → Flow;
-- related Skill/Flow capability family, discovery scope, and optional context policy → Suite.
-
-Keep Skill implementation details, prompts, and How in the Skill itself rather than duplicating them into a Flow.
 
 # Skill Contract
 
@@ -67,20 +114,18 @@ A reusable Skill design should make these explicit without bloating frontmatter:
 
 Keep Skills loosely coupled. A downstream Skill should depend on an input contract, not on a specific upstream Skill name.
 
-Example: `visual-composition` may require target audience, message, CTA, and visual constraints. It should not require that those values came from `ad-concept-planning`.
-
 # Composition design
 
-When several Skills may be needed:
+Dynamic compose is an execution mechanism, not a build trigger. It may be used for ordinary temporary multi-Skill tasks without persisting a Flow.
 
-- identify which responsibilities are independently reusable;
+When several Skills may be needed in an explicitly reusable design:
+
+- identify independently reusable responsibilities;
 - define required and optional handoff fields;
-- mark dependencies versus logically parallelizable work;
-- prefer the minimum Skill set needed for the end goal;
-- avoid fixed chains when Registry discovery can select suitable Skills dynamically;
-- preserve user stop points and explicit Skill ordering.
-
-Saved Flows complement rather than replace this dynamic composition design: use a Flow only when the execution plan itself is known, intentionally designed, and reusable. Capability steps may retain runtime discovery for selected parts of a fixed Flow skeleton.
+- mark dependencies versus parallelizable work;
+- prefer the minimum Skill set;
+- avoid fixed chains when runtime discovery is intentionally desired;
+- preserve user stop points and explicit ordering.
 
 # Flow design
 
@@ -91,9 +136,7 @@ Support at least:
 - `exact_skill`: a pinned Skill reference that runtime must not silently substitute;
 - `capability`: a capability query that runtime may resolve dynamically.
 
-Do not allow Flow → Flow recursion in v1. Keep the tagged step model extensible so a future subflow type can be introduced deliberately. Conditions must remain declarative equality checks under `condition.when`; do not introduce eval, JavaScript, arbitrary expressions, or natural-language condition execution.
-
-Prefer current Skill contracts over commit-SHA pinning. Do not introduce a separate versioning subsystem unless a machine-readable Skill contract makes lightweight compatibility requirements necessary.
+Do not allow Flow → Flow recursion in v1. Conditions remain declarative equality checks under `condition.when`; do not introduce eval, JavaScript, arbitrary expressions, or natural-language condition execution.
 
 # Suite design
 
@@ -103,47 +146,35 @@ Suite policy applies only when the Suite/Flow context is explicitly active. It m
 
 # Package architecture
 
-Design the Skill package before authoring prose. The canonical root is always:
-
-`skills/<skill-name>/`
-
-Required:
-
-- `skills/<skill-name>/SKILL.md`
-
-Optional when justified:
-
-- `references/`
-- `scripts/`
-- `assets/`
-- `evals/`
-
-Do not design a root-level `<skill-name>/SKILL.md` package.
+The canonical Skill root is always `skills/<skill-name>/` with required `SKILL.md` and optional `references/`, `scripts/`, `assets/`, `evals/` when justified.
 
 Additional first-class Registry roots are:
 
 - `flows/<flow-name>/FLOW.json` with optional `evals/`;
 - `suites/<suite-name>/SUITE.json` with optional `evals/`.
 
-Do not move Skills or Flows beneath Suites. Use JSON for Flow/Suite v1 manifests and native parsing/validation unless a concrete need justifies another dependency.
+Do not move Skills or Flows beneath Suites.
 
 # Visibility
 
 Public Flow/Suite objects may reference only public Registry objects. Private Flow/Suite objects may explicitly reference public or private Registry objects. Never expose private Registry names or repository details through a public manifest.
 
+Registry Search, reuse, extension, and Flow design must preserve the same boundary; reuse never grants permission to leak private content into public manifests.
+
 # Progressive Disclosure
 
-Keep core execution rules in SKILL.md. Move detailed or conditional material out when it does not need to be loaded every run. Do not move essential decision rules so far out that basic execution requires loading every reference.
+Load only evidence needed for the current architecture decision: gap-plan summary → promising Registry objects → contracts/dependents for extend/refactor candidates → detailed references only when required.
 
 # Definition of done
 
 Architecture is ready for authoring when:
 
-- the need for a Skill is justified;
-- one-vs-many Skill boundaries are explicit;
-- package resources are allocated intentionally;
-- inputs/outputs/quality gate and handoff are clear;
-- failure modes and non-triggers are defined;
-- the design supports reuse without unnecessary coupling.
-
-For Flow/Suite work, also require correct object placement, non-owning references, explicit DAG/handoff/completion semantics, safe visibility, and no degradation of standalone Skill reuse, Skill discovery, or dynamic compose.
+- explicit creation/change intent has been established upstream;
+- Registry Search covered relevant Skills and, for multi-capability reusable requests, relevant Flows;
+- every required capability has a justified `reuse`/`extend`/`create`/`model`/`external_tool` disposition;
+- no blind duplicate Skill creation remains;
+- extension preserves responsibility/contract or has been escalated to explicit refactor;
+- Flow-first design was considered for reusable multi-capability processes;
+- only genuine missing capabilities become new Skills;
+- inputs/outputs/quality gates/handoffs/failure modes are clear;
+- public/private boundaries remain safe.
