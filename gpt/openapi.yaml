@@ -6,8 +6,6 @@ info:
 servers:
   - url: https://YOUR-VERCEL-DOMAIN.vercel.app
 paths:
-  /api/health:
-    get: {operationId: healthCheck, summary: Check whether the Factory API is running., responses: {'200': {description: OK}}}
   /api/healthz:
     get: {operationId: healthz, summary: Liveness check., security: [], responses: {'200': {description: Healthy}}}
   /api/version:
@@ -144,8 +142,6 @@ paths:
                 expectedFiles: {type: array, items: {type: object, required: [path, sha], properties: {path: {type: string}, sha: {type: string}}}}
                 message: {type: string}
       responses: {'200': {description: Apply result}}
-  /api/skill-history:
-    get: {operationId: getSkillHistory, summary: Get recent commits touching a Skill or Factory module., parameters: [{in: query, name: target, required: false, schema: {type: string, enum: [skill, flow, suite, factory], default: skill}}, {in: query, name: visibility, required: false, schema: {type: string, enum: [public, private]}}, {in: query, name: name, required: true, schema: {type: string}}, *qRef], responses: {'200': {description: Commit history}}}
   /api/registry-history:
     get: {operationId: getRegistryHistory, summary: Get recent commits touching a Skill, Flow, Suite, or Factory module., parameters: [{in: query, name: target, required: true, schema: {type: string, enum: [skill, flow, suite, factory]}}, {in: query, name: visibility, required: false, schema: {type: string, enum: [public, private]}}, {in: query, name: name, required: true, schema: {type: string}}, *qRef], responses: {'200': {description: Commit history}}}
   /api/create-branch:
