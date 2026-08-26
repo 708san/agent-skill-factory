@@ -1,28 +1,28 @@
 ---
 name: skill-architect
-description: Design Registry-first Skill/Flow/Suite changes after creation intent and Registry gap analysis; decide reuse, extension, creation, model/tool placement, boundaries, contracts, handoffs, and Flow-first multi-capability architecture.
+description: Design Registry-first Skill/Flow/Suite changes after mutation authorization and Registry gap analysis; decide reuse, extension, creation, model/tool placement, boundaries, contracts, dependent impact, handoffs, and Flow-first multi-capability architecture.
 ---
 
 # Mission
 
 Design the smallest coherent Registry change that solves the user's explicit reusable-system intent without creating duplicate Skills, giant Skills, unnecessary micro-Skills, or breaking existing contracts.
 
-Architect is not the first step of create. It receives a request only after the Creation Gate passes and Registry Search + Capability Gap Plan have been performed by the orchestrator.
+Architect is not the first step of create. It receives a mutation-oriented request only after the request has been classified, the Creation Gate has authorized persistence, and Registry Search + Capability Gap Plan have been performed by the orchestrator.
 
 # Required inputs from the Registry-first pipeline
 
 Before architecture, require enough evidence to understand:
 
-- explicit creation/change intent;
+- explicit creation/change intent for the mutation being proposed;
 - requested reusable outcome;
 - capability decomposition;
 - relevant Skill search results;
 - relevant Flow search results for multi-capability requests;
 - Capability Gap Plan dispositions: `reuse`, `extend`, `create`, `model`, `external_tool`;
-- existing Skill responsibility/contract details for any `extend` candidate;
-- Registry dependents when available and relevant to extension/refactor risk.
+- existing Skill responsibility/contract details for any persisted existing-Skill change;
+- Registry dependents for persisted existing-Skill changes when `getRegistryDependents` is available.
 
-If these are materially missing, return to Registry Search/Gap planning instead of defaulting to new Skill authoring.
+If these are materially missing, return to Registry Search/Gap planning or dependent-impact inspection instead of defaulting to new Skill authoring.
 
 # Capability placement decisions
 
@@ -36,16 +36,19 @@ For every required capability, confirm or revise one primary disposition:
 
 Do not treat `create` as the default. Architecture quality includes minimizing persistent Registry growth.
 
-# Extension safety
+# Extension and dependent safety
 
-For every `extend` candidate:
+For every persisted change to an existing Skill, including an `extend` candidate:
 
 1. inspect the existing Skill's responsibility, trigger/non-trigger semantics, inputs, outputs, quality gate, handoff contract, and failure modes;
-2. inspect dependents with `getRegistryDependents` when available;
-3. identify backward-compatibility obligations;
-4. allow extension only when the proposed behavior remains within the same coherent responsibility;
-5. if the proposed capability is independently reusable or introduces a separate user intent/output, design a separate Skill;
-6. if the change would alter/break existing meaning or contract, classify it as `refactor` and require explicit refactor scope rather than silently changing the Skill inside create.
+2. when `getRegistryDependents` is available, dependent-impact inspection is mandatory before approving the persisted change;
+3. for a public Skill, inspect both public dependents and private dependents by querying the explicitly selected public and private dependent Registry scopes/refs;
+4. for a private Skill, inspect private dependents in the explicitly selected private Registry scope/ref;
+5. identify which dependent contracts could observe the proposed change;
+6. use the dependent evidence to judge backward compatibility and migration risk—the existence of dependents alone neither approves nor blocks the extension;
+7. allow extension only when the proposed behavior remains within the same coherent responsibility and preserves existing contract semantics;
+8. if the proposed capability is independently reusable or introduces a separate user intent/output, design a separate Skill;
+9. if the change would alter/break existing meaning or contract, classify it as `refactor` and require explicit refactor scope rather than silently changing the Skill inside create.
 
 # Required decisions before authoring
 
@@ -62,7 +65,7 @@ For every create, split, merge, or boundary-changing refactor, decide:
 9. handoff contract;
 10. failure modes;
 11. reuse potential;
-12. compatibility/dependent impact for extensions.
+12. compatibility and dependent impact for every persisted existing-Skill change.
 
 Do not begin authoring until these decisions are sufficiently clear.
 
@@ -169,10 +172,12 @@ Load only evidence needed for the current architecture decision: gap-plan summar
 
 Architecture is ready for authoring when:
 
-- explicit creation/change intent has been established upstream;
+- mutation authorization and explicit creation/change intent have been established upstream;
 - Registry Search covered relevant Skills and, for multi-capability reusable requests, relevant Flows;
 - every required capability has a justified `reuse`/`extend`/`create`/`model`/`external_tool` disposition;
 - no blind duplicate Skill creation remains;
+- every persisted existing-Skill change inspected its contract and, when available, all required dependent scopes (public target: public + private; private target: private);
+- dependent evidence informed backward-compatibility judgment rather than acting as an automatic veto;
 - extension preserves responsibility/contract or has been escalated to explicit refactor;
 - Flow-first design was considered for reusable multi-capability processes;
 - only genuine missing capabilities become new Skills;
