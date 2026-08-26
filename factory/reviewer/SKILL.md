@@ -1,6 +1,6 @@
 ---
 name: skill-reviewer
-description: Audit Agent Skill packages and Factory changes for correctness, Registry-first build semantics, mutation authorization, placement, progressive disclosure, boundaries, contracts, eval coverage, security, validation, and regression risk before PR or publication.
+description: Audit Agent Skill packages and Factory changes for correctness, Registry-first build semantics, mutation authorization, visibility-aware search, Flow representability, placement, boundaries, contracts, eval coverage, security, validation, and regression risk.
 ---
 
 # Mission
@@ -72,13 +72,16 @@ Review these as independent checks for every relevant Factory/Registry change. A
 1. **Ordinary-task mutation:** ordinary task execution did not create/change/persist Skill, Flow, or Suite state.
 2. **Mutation authorization:** no Registry object was persisted without explicit creation/change intent; read-only `use`, `audit`, and ordinary/meta did not require the Creation Gate.
 3. **Create ordering:** for explicit create, Registry Search occurred before Architect/Author and included Flow search when the reusable request was multi-capability/end-to-end.
-4. **Capability Gap Plan:** required capabilities were explicitly classified as `reuse`, `extend`, `create`, `model`, or `external_tool` before authoring.
-5. **Duplicate avoidance:** no blind duplicate Skill was created when an existing Skill adequately covered the responsibility.
-6. **Extension evidence:** before any persisted existing-Skill change, responsibility/contract was inspected and, when `getRegistryDependents` was available, required dependents were checked (public target: public + private; private target: private).
-7. **Breaking-change handling:** a contract/meaning-breaking change was not silently treated as `extend`; it was separated or routed to explicit refactor.
-8. **Flow-first design:** reusable known multi-capability processes considered Flow + independently reusable Skills rather than one giant Skill.
-9. **All-capabilities-existing case:** when all required Skills already existed, no unnecessary new Skill was authored; at most missing explicit reusable orchestration justified a Flow.
-10. **Compose persistence boundary:** temporary dynamic compose was not automatically persisted as a Flow without explicit user creation intent.
+4. **Visibility-aware search:** target visibility was explicit before authoring/writes; private targets searched public + private Skills/Flows as applicable; public direct-reuse search used public objects and did not create public→private dependencies; unresolved visibility did not produce a one-registry gap decision.
+5. **Gap evidence:** Capability Gap Plan records `targetVisibility`, searched Registry scopes, and `reuse`/`extend`/`create`/`model`/`external_tool` decisions supported by legal visibility evidence.
+6. **Duplicate avoidance:** no blind duplicate Skill was created when an existing legal Skill adequately covered the responsibility.
+7. **Extension evidence:** before any persisted existing-Skill change, responsibility/contract was inspected and, when `getRegistryDependents` was available, required dependents were checked (public target: public + private; private target: private).
+8. **Breaking-change handling:** a contract/meaning-breaking change was not silently treated as `extend`; it was separated or routed to explicit refactor.
+9. **Flow-first design:** reusable known multi-capability processes considered Flow + independently reusable Skills rather than one giant Skill.
+10. **All-capabilities-existing case:** when all required Skills already existed, no unnecessary new Skill was authored; at most missing explicit reusable orchestration justified a Flow.
+11. **Compose persistence boundary:** temporary dynamic compose was not automatically persisted as a Flow without explicit user creation intent.
+12. **Flow v1 representability:** every authored Flow required step is representable as current `exact_skill` or Skill-resolved `capability`; required `model`/`external_tool` gaps that lack a legal Skill representation block authoring as `unsupported_flow_capability` or equivalent.
+13. **No representability distortion:** the design did not silently omit required Flow capabilities, create unnecessary Skills just to fit Flow schema, bury external-tool responsibilities inside Skills, or emit unsupported step types.
 
 Dependent existence alone is not a pass/fail criterion for extension. Review whether dependent evidence was actually used to assess backward compatibility and migration risk.
 
@@ -90,7 +93,9 @@ For a completed Flow, verify:
 - valid JSON/schema and v1 DAG;
 - unique step ids, existing dependencies, and no cycles;
 - exact Skill references exist and are never silently substituted;
-- capability definitions remain dynamically resolvable;
+- capability definitions remain dynamically resolvable through Skill discovery;
+- every step type is one supported by current Flow v1;
+- no required model-native/external-tool capability was silently omitted or disguised as an unrelated Skill;
 - handoff sources and expected outputs are consistent;
 - duplicate/conflicting outputs are rejected;
 - conditions are limited to declarative `condition.when` equality checks;
@@ -120,7 +125,9 @@ For Registry-first v0.10 routing, additionally regression-check:
 - read-only `audit` remains directly reachable without Creation Gate and without repository mutation;
 - failed ordinary-task Skill discovery falls back to model/tool/dynamic compose and never transitions into create;
 - mutation-oriented modes require explicit authorization before persistence;
-- extension dependent-scope rules preserve the public/private boundary.
+- Registry Search visibility scope is correct and gap plans carry scope evidence;
+- extension dependent-scope rules preserve the public/private boundary;
+- Flow v1 representability is fail-closed before Author.
 
 For Flow/Suite Factory changes, explicitly regression-check:
 
@@ -134,7 +141,7 @@ For Flow/Suite Factory changes, explicitly regression-check:
 8. standalone Suite-member Skill receives no Suite policy;
 9. one Skill may be referenced by multiple Suites;
 10. exact Flow steps are not substituted;
-11. capability Flow steps may resolve dynamically;
+11. capability Flow steps may resolve dynamically through Skills;
 12. nonexistent exact Skill references are rejected;
 13. dependency cycles are rejected;
 14. public Flow/Suite → private references are rejected;
@@ -149,4 +156,4 @@ Also verify generalized Registry write/delete path guards preserve valid existin
 
 # Decision
 
-Return PASS only when no blocking correctness, security, placement, boundary, mutation-authorization, Registry-first pipeline, or regression issue remains. Distinguish unexecuted E2E checks from actual failures.
+Return PASS only when no blocking correctness, security, placement, boundary, mutation-authorization, Registry-first pipeline, visibility-search, Flow-representability, or regression issue remains. Distinguish unexecuted E2E checks from actual failures.
