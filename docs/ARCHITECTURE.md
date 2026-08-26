@@ -14,10 +14,10 @@ Agent Skill Factory separates read-only runtime behavior from Registry mutation.
 
 ## Factory responsibilities
 
-- Orchestrator: request classification, mutation-only Creation Gate, mode routing, Registry Search, Capability Gap Plan, runtime exact/discover/recommend/compose/Flow routing
-- Architect: Registry-first capability placement, reuse/extend/create boundaries, dependent-impact analysis, Flow-first multi-capability design, contracts and handoffs
-- Author: implement approved Skill/Flow/Suite package changes only
-- Reviewer: independent routing/authorization/behavior/outcome/regression evaluation, including Registry-first build gates
+- Orchestrator: request classification, mutation-only Creation Gate, visibility-aware Registry Search, Capability Gap Plan, runtime exact/discover/recommend/compose/Flow routing
+- Architect: Registry-first capability placement, visibility and reuse boundaries, dependent-impact analysis, Flow-first multi-capability design, Flow representability, contracts and handoffs
+- Author: implement only approved and currently representable Skill/Flow/Suite package changes
+- Reviewer: independent routing/authorization/visibility/representability/behavior/outcome/regression evaluation
 - Publisher: private → public-safe conversion
 
 ## Routing and mutation authorization
@@ -35,25 +35,21 @@ After an explicit `create` has been classified and mutation authorization passes
 
 `Creation Gate → Registry Search → Capability Gap Plan → Architect → Author → Reviewer`
 
-### Creation Gate
+### Registry Search visibility
 
-Ordinary execution requests are read-only even when they sound generative, for example advertising creation, prose improvement, research, image generation, or analysis. They may use existing Registry objects, model capability, tools, or dynamic compose. They must not create/change Skills, Flows, or Suites.
+Search scope is determined by the target Registry visibility:
 
-Read-only audit is also outside the gate. Persistence is allowed only when the user explicitly asks to create/change a reusable Registry object or requests another mutation-oriented mode.
+- private target: search both private and public Skills; for multi-capability/end-to-end design, search both private and public Flows. A private object may directly reuse public or private objects.
+- public target: search public Skills/Flows for direct reuse. Public objects never gain private Registry dependencies. Private objects may be inspected only as non-direct source/publish candidates when useful; publicizing private material goes through Publisher/sanitization.
+- visibility unresolved: do not finalize a gap from one Registry. Gather sufficient public/private evidence, then make target visibility explicit before authoring or writing.
 
-There is no automatic Skillizer that mines ordinary task traffic and persists candidates without user intent.
-
-### Registry Search
-
-Before new authoring, search existing Skills for every reusable capability. For a reusable multi-capability/end-to-end request, search existing Flows as well.
-
-Failed Skill discovery during an ordinary task falls back to model/tool/dynamic compose as appropriate and never transitions into create.
+Capability Gap Plan evidence includes `targetVisibility` and the Registry scopes searched for each capability decision. This prevents false gaps and illegal reuse.
 
 ### Capability Gap Plan
 
 Each required capability is classified as:
 
-- `reuse` — use an existing Skill unchanged;
+- `reuse` — use an existing legal Skill unchanged;
 - `extend` — backward-compatible generalization/improvement of an existing Skill;
 - `create` — genuinely missing reusable capability;
 - `model` — ordinary model behavior, no Registry object;
@@ -76,7 +72,17 @@ Queries use explicitly selected Registry scopes/refs. Dependent evidence informs
 - reusable known multi-capability process → Flow + independently reusable Skills
 - temporary multi-Skill execution → dynamic compose
 
-Flow design reuses existing Skills first and creates only capability gaps. If all Skills already exist, only a Flow may be needed. If an existing Flow already matches, no new object is needed.
+Flow design reuses existing legal Skills first and creates only genuine independently reusable capability gaps. If all Skills already exist, only a Flow may be needed. If an existing Flow already matches, no new object is needed.
+
+### Flow v1 representability
+
+Current Flow v1 supports only `exact_skill` and `capability` steps. `capability` is resolved through Skill discovery; Flow v1 does not directly execute model-native responsibilities or external tool/API actions.
+
+If a required reusable Flow capability remains disposition=`model` or `external_tool` and there is no independently justified legal Skill representation, architecture fails closed with `unsupported_flow_capability` (or equivalent). The required capability must not be silently omitted, converted into an unnecessary Skill merely to fit schema, hidden inside an unrelated Skill, or authored as an unsupported step type.
+
+Only Flow designs fully representable by current v1 step semantics proceed to Author.
+
+Direct `model` and `external_tool` Flow step support is a candidate for the next Factory/runtime/schema stage, not part of v0.10 stage 1. Adding it will require coordinated Flow schema, validator, runtime, authoring, review, and compatibility work.
 
 ## Runtime execution paths
 
@@ -104,4 +110,4 @@ Mutation-oriented modes require Creation Gate authorization, use a non-main bran
 
 ## Tool responsibilities
 
-Repository reads/search, dependents lookup, branch creation, validation, diff, PR, and rollback plumbing belong to the Action API rather than SKILL.md judgment logic. v0.10 Registry-first routing is implemented with existing Actions; no new backend API is required for this stage.
+Repository reads/search, dependents lookup, branch creation, validation, diff, PR, and rollback plumbing belong to the Action API rather than SKILL.md judgment logic. v0.10 Registry-first routing and Flow representability are implemented with existing Actions; no new backend API is required for this stage.
