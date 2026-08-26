@@ -55,18 +55,30 @@ For an explicit `create` request, classify first, pass the Creation Gate, then u
 
 Creation Gate → Registry Search → Capability Gap Plan → Architect → Author → Reviewer.
 
+### Registry Search visibility scope
+
+Determine the intended target visibility before authoring/writing. If visibility is not yet known during early search, do not make a one-registry gap decision: search enough public and private evidence to avoid a false gap, then make target visibility explicit before finalizing the Capability Gap Plan or loading Author for writes.
+
+Use these rules:
+
+- private target: search both private and public Skills; for reusable multi-capability/end-to-end creation, search both private and public Flows. A private Registry object may directly reuse public or private Registry objects.
+- public target: search public Skills and, when relevant, public Flows for direct reuse. A public Registry object must never depend directly on a private Skill/Flow. Private candidates may be inspected only as non-direct source/publish candidates when relevant; making private material public requires the publisher workflow and sanitization.
+
+For each capability in the internal Capability Gap Plan, record at least the target visibility and which Registry scopes were searched. A `reuse` conclusion must be supported by a scope that the target object may legally reference.
+
 Before authoring any new Skill:
 
-1. Search existing Skills for each required capability.
-2. If the reusable request is multi-capability or end-to-end, also search existing Flows.
+1. Search existing Skills for each required capability using the visibility rules above.
+2. If the reusable request is multi-capability or end-to-end, also search existing Flows in the legal scopes above.
 3. Build an internal Capability Gap Plan that classifies each needed capability as exactly one primary disposition:
    - `reuse`: an existing Skill can be used unchanged;
    - `extend`: an existing Skill can be generalized/improved without breaking its responsibility or contract;
    - `create`: a genuinely missing reusable capability requires a new Skill;
    - `model`: the capability should remain ordinary model behavior rather than a Skill;
    - `external_tool`: the responsibility belongs to an external tool/API.
-4. Default away from `create`; reuse existing Registry objects whenever they adequately cover the responsibility.
-5. Pass only unresolved architecture decisions to Architect, and author only approved Registry changes.
+4. Record `targetVisibility` and `searchedScopes` for each disposition so the gap decision is traceable to the Registry evidence used.
+5. Default away from `create`; reuse existing Registry objects whenever they adequately cover the responsibility and are legal for the target visibility.
+6. Pass only unresolved architecture decisions to Architect, and author only approved Registry changes.
 
 For any persisted change to an existing Skill, inspect its responsibility and contract. When `getRegistryDependents` is available, dependent-impact review is mandatory before approving `extend` or another persisted existing-Skill change:
 
@@ -76,6 +88,21 @@ For any persisted change to an existing Skill, inspect its responsibility and co
 Use dependent evidence to judge backward compatibility and contract impact; the mere presence of dependents is not an automatic veto. A backward-compatible generalization may be extended. An independent new responsibility should become a separate Skill. A change that breaks the existing Skill's meaning or contract must be treated as an explicit `refactor`, not silently folded into create.
 
 For a reusable known multi-capability process, prefer Flow + independently reusable Skills over one giant Skill. Reuse existing Skills inside the Flow and create only missing Skills. For one coherent reusable responsibility, prefer one Skill and no Flow. Temporary multi-Skill execution remains dynamic compose and must not be persisted without explicit creation intent.
+
+### Flow v1 representability guard
+
+Current Flow v1 may author only `exact_skill` and `capability` steps. A `capability` step resolves through Skill discovery; it is not a direct model-native or external-tool step.
+
+If a required reusable Flow capability remains disposition=`model` or disposition=`external_tool`, and no legal existing/new Skill representation is independently justified for that responsibility, treat it as `unsupported_flow_capability` (or equivalent architecture blocker). Do not pass an unrepresentable Flow design to Author.
+
+Fail closed. Do not:
+
+- silently omit the required capability from the Flow;
+- convert a `model` disposition into an unnecessary Skill merely to fit Flow v1;
+- bury an `external_tool` responsibility inside a Skill merely to fit Flow v1;
+- author a step type that the current Flow validator/schema does not support.
+
+Flow schema/runtime expansion for direct `model` or `external_tool` steps is outside this v0.10 stage.
 
 ## Change-mode routing
 
@@ -206,7 +233,7 @@ Do not preload all Factory modules, all Skills, or all references.
 
 For Flow execution, load the Flow manifest first and then only the Skills/resources needed by applicable steps. Load Suite manifests only when Suite context is explicitly requested or required for scoped discovery.
 
-For explicit Registry creation, perform Registry Search and Capability Gap planning before loading Architect/Author; do not preload authoring modules for ordinary task execution or read-only audit.
+For explicit Registry creation, perform visibility-aware Registry Search and Capability Gap planning before loading Architect/Author; do not preload authoring modules for ordinary task execution or read-only audit. Target visibility must be explicit before authoring/writes.
 
 ## Repository safety
 
