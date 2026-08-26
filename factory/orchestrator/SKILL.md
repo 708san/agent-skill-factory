@@ -1,6 +1,6 @@
 ---
 name: skill-factory-orchestrator
-description: Route Agent Skill Factory requests across create, use, audit, refactor, split, merge, publish, and rollback; support exact use, implicit discovery, recommendation, and minimal multi-Skill composition with progressive disclosure.
+description: Route Agent Skill Factory requests across read-only behavior and explicit Registry mutation modes; enforce mutation authorization, visibility-aware Registry-first planning, runtime discovery/composition, and progressive disclosure.
 ---
 
 # Mission
@@ -16,31 +16,123 @@ Flow and Suite extend the Registry without changing existing Skill semantics:
 
 Never move a Skill under a Suite, treat Suite membership as ownership, or inject Suite policy into standalone Skill use. The same Skill or Flow may be referenced by multiple Suites.
 
-# Modes
+# Modes and read-only behavior
 
-- `use`: select and execute existing Skills without modifying repositories.
-- `create`: design and implement one or more new Skills.
+- `use`: select and execute existing Skills/Flows or model/tools without modifying repositories.
 - `audit`: evaluate without changing files.
-- `refactor`: improve an existing Skill while preserving valid behavior.
-- `split`: split an oversized Skill when responsibilities are independently reusable.
-- `merge`: combine genuinely overlapping Skills when one coherent responsibility remains.
-- `publish`: create a public-safe variant from private source material.
-- `rollback`: restore a previous known-good version through repository history.
+- ordinary/meta: explain/analyze without Registry mutation.
+- `create`: explicitly create one or more reusable Registry objects after Registry-first gap analysis.
+- `refactor`: explicitly change an existing Registry object while preserving valid behavior/contract unless a breaking refactor is intentionally scoped.
+- `split`: explicitly split an oversized Skill when responsibilities are independently reusable.
+- `merge`: explicitly combine genuinely overlapping Skills when one coherent responsibility remains.
+- `publish`: explicitly create a public-safe variant from private source material.
+- `rollback`: explicitly restore a previous known-good version through repository history.
 
 For Flow/Suite Registry work, apply the same mode meanings and repository workflow to the requested Registry object; Suite is not normally an executable target.
 
+# Creation Gate — Registry mutation authorization
+
+The Creation Gate is not a mode classifier. Classify the request first.
+
+Read-only `use`, read-only `audit`, and ordinary/meta behavior bypass the Creation Gate and must not mutate repositories.
+
+Mutation-oriented modes—`create`, `refactor`, `split`, `merge`, `publish`, and `rollback`—must pass the Creation Gate before any Registry write/delete/persisting branch workflow. The gate passes only when the user expresses explicit creation/change intent for a reusable Registry object or explicitly requests the corresponding mutation.
+
+Normal task execution is not mutation authorization. Requests such as `広告を作って`, `この文章を改善して`, `この会社を調査して`, and `画像を作って` stay in read-only use runtime. They may use existing Skill discovery, saved Flow execution, model/tool capability, or dynamic compose, but must not create or modify Skill/Flow/Suite packages.
+
+Task-quality language alone is insufficient. `この処理をもっと良くして` means improve the task unless the user clearly refers to a Registry object or persistence/reuse.
+
+If a mutation-oriented interpretation does not have explicit creation/change intent, deny mutation and continue only with a compatible read-only interpretation when one exists. Do not reclassify a legitimate read-only `audit` as `use` merely because no Creation Gate is needed.
+
+Never auto-persist candidate Skills from ordinary task traffic. There is no automatic Skillizer path.
+
 # Routing
 
-1. Determine the mode from the user's request; infer it when obvious.
-2. For `use`, apply the runtime routing below and never write to a repository.
-3. For `audit`, load reviewer and the target Skill/package.
-4. For `create`, load architect → author → reviewer.
-5. For `refactor`, load reviewer → architect only if boundaries change → author → reviewer.
-6. For `split` or `merge`, load architect → author → reviewer.
-7. For `publish`, load publisher → reviewer.
-8. For `rollback`, use repository operations and validate the restored state.
+1. Determine the request's mode/behavior before applying any gate.
+2. For `use`, apply runtime routing below; no Creation Gate and no repository mutation.
+3. For `audit`, load reviewer and the target Registry package; no Creation Gate and no repository mutation unless the user separately authorizes a change.
+4. For ordinary/meta, answer read-only; no Creation Gate and no repository mutation.
+5. For `create`, require Creation Gate, then run Registry Search → Capability Gap Plan → architect → author → reviewer.
+6. For `refactor`, require Creation Gate, then reviewer → inspect responsibility/contract/dependents → architect only if boundaries change → author → reviewer.
+7. For `split` or `merge`, require Creation Gate, then architect → author → reviewer.
+8. For `publish`, require Creation Gate, then publisher → reviewer.
+9. For `rollback`, require Creation Gate, then use repository history and validate/review the restored state.
 
-For Flow/Suite create, audit, or refactor requests, the target Registry object/package replaces the Skill/package referent above; the specialist sequence is unchanged.
+# Registry-first create pipeline
+
+## Registry Search
+
+Before designing new Registry objects:
+
+1. decompose the requested reusable outcome into required capabilities;
+2. determine the intended target visibility before authoring or writing;
+3. search the Registry according to the visibility rules below;
+4. load promising existing objects only as needed to judge responsibility and contract fit;
+5. do not author until search is complete enough to distinguish reuse, extension, genuine gaps, and visibility constraints.
+
+### Visibility-aware search scope
+
+- private target: search both private and public Skills. For a reusable multi-capability/end-to-end request, search both private and public Flows. A private object may directly reuse public or private Registry objects.
+- public target: search public Skills and, when relevant, public Flows for direct reuse. A public object must not directly depend on private Registry objects. Private objects may be inspected only as non-direct source/publish candidates when useful; exposing private material publicly requires publisher workflow/sanitization.
+- target visibility not yet determined: do not decide a capability gap from only one Registry. Search sufficient public/private evidence to avoid a false gap, then make target visibility explicit before finalizing the gap plan or authoring/writing.
+
+## Capability Gap Plan
+
+Maintain an internal plan with one primary disposition per required capability:
+
+- `reuse`: existing Skill is sufficient unchanged;
+- `extend`: existing Skill can be generalized/improved backward-compatibly within its responsibility;
+- `create`: genuinely missing reusable capability requires a new Skill;
+- `model`: ordinary model capability should not become a Skill;
+- `external_tool`: responsibility belongs to an external tool/API.
+
+For every capability record at least:
+
+- `targetVisibility`;
+- `searchedScopes` (for example public Skills, private Skills, public Flows, private Flows as applicable);
+- the chosen disposition and supporting Registry evidence.
+
+A `reuse` disposition is valid only when the target may legally reference the reused object. New Skill creation is not the default. Minimize new persistent objects.
+
+If every required capability already exists, create no new Skill. If the user explicitly requested a reusable known multi-capability process and only orchestration is missing, create only the Flow when appropriate.
+
+## Extension safety
+
+For any persisted change to an existing Skill:
+
+1. load the Skill and inspect responsibility, trigger/non-trigger behavior, inputs/outputs, quality gate, handoff contract, and failure modes;
+2. when `getRegistryDependents` is available, dependent-impact inspection is mandatory before approving the persisted change;
+3. for a public Skill, inspect both public dependents and private dependents in their explicitly selected Registry scopes/refs;
+4. for a private Skill, inspect private dependents in the explicitly selected private Registry scope/ref;
+5. use dependent evidence to evaluate backward compatibility and contract impact; the existence of dependents alone does not forbid extension;
+6. allow `extend` only when the responsibility remains coherent and the existing contract remains backward compatible;
+7. if the proposed work is an independent responsibility, design a separate Skill;
+8. if the existing Skill's meaning/contract would break, do not silently modify it as part of create—route to explicit `refactor` or propose a separate Skill.
+
+## Flow-first reusable multi-capability design
+
+For explicit requests such as `○○する再利用可能な仕組みを作って`:
+
+- single coherent reusable responsibility → one Skill, no Flow;
+- reusable known multi-capability process → Flow + independently reusable Skills;
+- temporary multi-Skill execution → dynamic compose, no persistence.
+
+In a new Flow, maximize reuse of existing Skills and create only missing Skill capabilities identified by the Capability Gap Plan. Do not build a giant Skill merely to avoid a Flow.
+
+### Flow v1 representability guard
+
+Flow v1 supports only `exact_skill` and `capability` step types. `capability` resolves through Skill discovery; it is not a direct model-native or external-tool step.
+
+Before sending a Flow design to Architect/Author, identify required capabilities whose gap-plan disposition is `model` or `external_tool`. If a required capability cannot be represented legally through an existing or independently justified Skill under current Flow v1, mark the design `unsupported_flow_capability` (or equivalent blocker).
+
+Fail closed:
+
+- do not drop the required step;
+- do not turn a `model` capability into an unnecessary Skill just to fit Flow v1;
+- do not bury `external_tool` responsibility inside a Skill just to fit Flow v1;
+- do not invent a validator-unsupported Flow step type.
+
+An architecture blocker prevents Flow authoring until the design becomes representable or the runtime/schema is extended in a later Factory stage.
 
 # Use runtime
 
@@ -69,13 +161,6 @@ Use when the user did not name a Skill but is asking Agent Skill Factory to perf
 
 The user does not need to say “Skill”, “適切なSkill”, or “使えるSkill”. Being invoked as Agent Skill Factory plus a concrete execution request is sufficient to consider discovery.
 
-Examples that should trigger discovery when a matching Skill plausibly exists:
-
-- `この文章をAIっぽくなくしたい。`
-- `このLPをもっと訴求力のある文章にしたい。`
-- `この調査結果を比較表に整理して。`
-- `広告画像の構図を考えて。`
-
 Procedure:
 
 1. Call `searchSkills` with a task-focused query and an explicit visibility scope.
@@ -89,15 +174,11 @@ Do not mechanically search for every request. Use ordinary/meta routing for expl
 
 Flow search is separate from `searchSkills`; do not blend Flow results into Skill scoring or discovery results. A local/single-responsibility request stays on the Skill path even when a broader Flow exists.
 
+If discovery finds no match during an ordinary task, fall back to model/tool capability or dynamic compose as appropriate. Do not transition to `create` and do not mutate the Registry.
+
 ## C. recommend
 
 Use when the user asks only for candidates or availability and does not want execution yet.
-
-Examples:
-
-- `文章改善に使えるSkillある？`
-- `競合調査向けのSkillを教えて。`
-- `今回はまだ実行しなくていい。`
 
 Procedure:
 
@@ -111,33 +192,13 @@ Skill recommendation remains Skill-only unless the user specifically asks for Fl
 
 Use only when multiple Skills create clear value and one Skill cannot adequately complete the user's final goal.
 
-Compose is appropriate when one or more of the following apply:
+Before execution, form an internal Skill Execution Plan containing user goal, selected Skills, execution order, each Skill responsibility, inputs, expected outputs, handoffs, dependencies, and completion condition.
 
-- multiple independent specialist judgments are required;
-- multiple independently useful outputs are required;
-- Skill A output is required input to Skill B;
-- responsibilities are independently reusable;
-- separating responsibilities materially improves quality or reuse.
+Search the current Registry and select the minimum Skill set needed. Do not use a Skill simply because it is available. Do not compose merely because a workflow has multiple steps.
 
-Do not compose merely because a workflow has multiple steps. Prefer one Skill when its core workflow naturally includes those steps, such as `review → rewrite` inside `human-writing-review`.
+For a multi-responsibility request, first use a saved Flow only when a registered Flow strongly matches the requested end-to-end outcome. If no adequate Flow exists, keep dynamic compose.
 
-Before execution, form an internal Skill Execution Plan containing:
-
-- user goal
-- selected Skills
-- execution order
-- each Skill responsibility
-- input for each Skill
-- expected output
-- handoff
-- dependencies
-- completion condition
-
-Search the current Registry and select the minimum Skill set needed. Do not use a Skill simply because it is available.
-
-Load `references/composition-runtime.md` when composition is selected.
-
-For a multi-responsibility request, first use a saved Flow only when a registered Flow strongly matches the requested end-to-end outcome. If no adequate Flow exists, keep the existing dynamic compose behavior above.
+Dynamic compose is read-only temporary execution; it never implies Flow creation without explicit persistence intent.
 
 # Saved Flow routing
 
@@ -170,39 +231,21 @@ A Suite is not normally executed. When a Suite is explicitly selected as context
 
 # Ordinary / meta routing
 
-Do not search Skills for explanation-only questions, including:
-
-- general knowledge questions;
-- questions about how Factory works;
-- explanations of `searchSkills`, `getSkill`, repository management, or Factory structure;
-- conceptual questions that do not ask Factory to perform a concrete task.
-
-Examples:
-
-- `AIっぽい文章とはどういう文章？`
-- `searchSkillsはどういう仕組み？`
-- `Factoryのrepository構造を教えて。`
+Do not search Skills for explanation-only questions, including general knowledge, Factory internals, or conceptual questions that do not ask Factory to perform a concrete task.
 
 # User control
 
-Respect explicit user constraints whenever compatible with existence, visibility, safety, and required inputs. Examples include:
-
-- `$skill-aだけ使って`
-- `画像生成はまだしないで`
-- `構図までで止めて`
-- `このSkillは使わないで`
-- `$skill-a → $skill-b の順で使って`
-
-Do not silently expand scope beyond those constraints.
+Respect explicit user constraints whenever compatible with existence, visibility, safety, and required inputs. Do not silently expand scope beyond those constraints.
 
 The same rule applies to explicit Flow selection, step exclusions, and Suite scoping; excluding an applicable required Flow step prevents a full-success claim.
 
 # Repository policy
 
 - GitHub files returned by Actions are authoritative; do not embed fixed copies of Skill bodies.
-- `use` mode is read-only. Never branch, write, delete, publish, or open a PR merely to use a Skill.
-- If use reveals an improvement opportunity, mention it only as a suggestion unless the user requests a change.
-- Change modes must use a non-main branch and perform branch → write → validate → diff → reviewer.
+- Read-only `use`, `audit`, and ordinary/meta behavior never branch, write, delete, publish, or open a PR merely to execute or inspect Registry content.
+- Ordinary tasks remain read-only even if no matching Registry object exists.
+- If use/audit reveals an improvement opportunity, mention it only as a suggestion unless the user explicitly requests a Registry change.
+- Mutation-oriented modes must pass the Creation Gate, use a non-main branch, and perform branch → write → validate → diff → reviewer.
 - Never write directly to `main`.
 - Create a pull request only when the user explicitly requests PR creation or explicitly authorizes proceeding through PR when acceptable.
 - Public/private repositories are security boundaries. Multi-Skill use may combine public and private Skills read-only, but private content must never be written to public storage outside the publisher workflow.
@@ -211,24 +254,33 @@ For Registry references, public Flow/Suite objects may reference public objects 
 
 # Progressive disclosure
 
-Load resources in this order and only as needed:
+For ordinary use, load resources in this order and only as needed:
 
-orchestrator → required Factory module(s) → selected Skill → files required by that Skill → compact handoff → next selected Skill.
+orchestrator → selected Flow/Skill → files required by that object → compact handoff → next selected Skill.
 
-Do not preload all Factory modules, all Skills, all SKILL.md files, or all references.
+For read-only audit, load only reviewer → target package/diff → required evidence; do not load authoring modules unless the user later authorizes change.
 
-For Flow execution, load the Flow manifest first and then only the Skills/resources required by applicable steps. Suite manifests are loaded only when Suite context is requested or required for scoped discovery.
+For explicit creation/change, use:
+
+orchestrator → visibility-aware Registry Search results → Capability Gap Plan with targetVisibility/searchedScopes → required existing Skill/Flow/dependent details → architect → author → reviewer.
+
+Do not load architect/author merely because an ordinary task or audit could theoretically become reusable. Do not load Author for a Flow design blocked as `unsupported_flow_capability`.
 
 # Definition of done
 
 A routed request is complete only when:
 
-- the correct mode and use path were selected;
-- implicit concrete-task discovery was considered when appropriate;
-- ordinary/meta questions avoided unnecessary discovery;
-- composition used the smallest sufficient Skill set;
+- mode/behavior was classified before mutation authorization;
+- read-only use/audit/ordinary-meta bypassed the Creation Gate and performed no Registry mutation;
+- mutation-oriented modes passed the Creation Gate before persistence;
+- implicit concrete-task discovery remained available and failed discovery did not transition to create;
+- recommend/dynamic compose/saved Flow execution remained intact;
+- explicit create performed visibility-aware Registry Search and Capability Gap planning before authoring;
+- target visibility was explicit before authoring/writes and gap evidence recorded searched Registry scopes;
+- new Skills were limited to genuine gaps and legal visibility relationships;
+- persisted existing-Skill changes inspected contract and required dependent scopes when available;
+- extension did not hide breaking refactors;
+- multi-capability reusable process design preferred Flow + minimum independently reusable Skills;
+- unrepresentable required model/external-tool Flow capabilities failed closed before Author;
 - user constraints and public/private boundaries were preserved;
-- use mode performed no repository mutation;
 - change modes completed validation, diff, and reviewer checks before optional PR creation.
-
-For Flow/Suite-aware routing, also verify that local work was not absorbed into a Flow, exact Flow steps were not substituted, Suite policy stayed context-scoped, and uncovered multi-responsibility work remained dynamically composed.
