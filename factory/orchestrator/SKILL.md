@@ -1,6 +1,6 @@
 ---
 name: skill-factory-orchestrator
-description: Route Agent Skill Factory requests across read-only behavior and explicit Registry mutation modes; enforce mutation authorization, Registry-first build planning, runtime discovery/composition, and progressive disclosure.
+description: Route Agent Skill Factory requests across read-only behavior and explicit Registry mutation modes; enforce mutation authorization, visibility-aware Registry-first planning, runtime discovery/composition, and progressive disclosure.
 ---
 
 # Mission
@@ -65,10 +65,16 @@ Never auto-persist candidate Skills from ordinary task traffic. There is no auto
 Before designing new Registry objects:
 
 1. decompose the requested reusable outcome into required capabilities;
-2. search Skills for every reusable capability;
-3. when the requested reusable outcome is multi-capability/end-to-end, search existing Flows as well;
+2. determine the intended target visibility before authoring or writing;
+3. search the Registry according to the visibility rules below;
 4. load promising existing objects only as needed to judge responsibility and contract fit;
-5. do not author until this search is complete enough to distinguish reuse, extension, and genuine gaps.
+5. do not author until search is complete enough to distinguish reuse, extension, genuine gaps, and visibility constraints.
+
+### Visibility-aware search scope
+
+- private target: search both private and public Skills. For a reusable multi-capability/end-to-end request, search both private and public Flows. A private object may directly reuse public or private Registry objects.
+- public target: search public Skills and, when relevant, public Flows for direct reuse. A public object must not directly depend on private Registry objects. Private objects may be inspected only as non-direct source/publish candidates when useful; exposing private material publicly requires publisher workflow/sanitization.
+- target visibility not yet determined: do not decide a capability gap from only one Registry. Search sufficient public/private evidence to avoid a false gap, then make target visibility explicit before finalizing the gap plan or authoring/writing.
 
 ## Capability Gap Plan
 
@@ -80,7 +86,13 @@ Maintain an internal plan with one primary disposition per required capability:
 - `model`: ordinary model capability should not become a Skill;
 - `external_tool`: responsibility belongs to an external tool/API.
 
-New Skill creation is not the default. Minimize new persistent objects.
+For every capability record at least:
+
+- `targetVisibility`;
+- `searchedScopes` (for example public Skills, private Skills, public Flows, private Flows as applicable);
+- the chosen disposition and supporting Registry evidence.
+
+A `reuse` disposition is valid only when the target may legally reference the reused object. New Skill creation is not the default. Minimize new persistent objects.
 
 If every required capability already exists, create no new Skill. If the user explicitly requested a reusable known multi-capability process and only orchestration is missing, create only the Flow when appropriate.
 
@@ -106,6 +118,21 @@ For explicit requests such as `○○する再利用可能な仕組みを作っ�
 - temporary multi-Skill execution → dynamic compose, no persistence.
 
 In a new Flow, maximize reuse of existing Skills and create only missing Skill capabilities identified by the Capability Gap Plan. Do not build a giant Skill merely to avoid a Flow.
+
+### Flow v1 representability guard
+
+Flow v1 supports only `exact_skill` and `capability` step types. `capability` resolves through Skill discovery; it is not a direct model-native or external-tool step.
+
+Before sending a Flow design to Architect/Author, identify required capabilities whose gap-plan disposition is `model` or `external_tool`. If a required capability cannot be represented legally through an existing or independently justified Skill under current Flow v1, mark the design `unsupported_flow_capability` (or equivalent blocker).
+
+Fail closed:
+
+- do not drop the required step;
+- do not turn a `model` capability into an unnecessary Skill just to fit Flow v1;
+- do not bury `external_tool` responsibility inside a Skill just to fit Flow v1;
+- do not invent a validator-unsupported Flow step type.
+
+An architecture blocker prevents Flow authoring until the design becomes representable or the runtime/schema is extended in a later Factory stage.
 
 # Use runtime
 
@@ -235,9 +262,9 @@ For read-only audit, load only reviewer → target package/diff → required evi
 
 For explicit creation/change, use:
 
-orchestrator → Registry Search results → Capability Gap Plan → required existing Skill/Flow/dependent details → architect → author → reviewer.
+orchestrator → visibility-aware Registry Search results → Capability Gap Plan with targetVisibility/searchedScopes → required existing Skill/Flow/dependent details → architect → author → reviewer.
 
-Do not load architect/author merely because an ordinary task or audit could theoretically become reusable.
+Do not load architect/author merely because an ordinary task or audit could theoretically become reusable. Do not load Author for a Flow design blocked as `unsupported_flow_capability`.
 
 # Definition of done
 
@@ -248,10 +275,12 @@ A routed request is complete only when:
 - mutation-oriented modes passed the Creation Gate before persistence;
 - implicit concrete-task discovery remained available and failed discovery did not transition to create;
 - recommend/dynamic compose/saved Flow execution remained intact;
-- explicit create performed Registry Search and Capability Gap planning before authoring;
-- new Skills were limited to genuine gaps;
+- explicit create performed visibility-aware Registry Search and Capability Gap planning before authoring;
+- target visibility was explicit before authoring/writes and gap evidence recorded searched Registry scopes;
+- new Skills were limited to genuine gaps and legal visibility relationships;
 - persisted existing-Skill changes inspected contract and required dependent scopes when available;
 - extension did not hide breaking refactors;
 - multi-capability reusable process design preferred Flow + minimum independently reusable Skills;
+- unrepresentable required model/external-tool Flow capabilities failed closed before Author;
 - user constraints and public/private boundaries were preserved;
 - change modes completed validation, diff, and reviewer checks before optional PR creation.
