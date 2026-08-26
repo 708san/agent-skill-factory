@@ -1,6 +1,6 @@
 ---
 name: skill-factory-orchestrator
-description: Route Agent Skill Factory requests across read-only use and explicit Registry change modes; enforce a Creation Gate, Registry-first build planning, exact/discover/recommend/compose runtime behavior, and progressive disclosure.
+description: Route Agent Skill Factory requests across read-only behavior and explicit Registry mutation modes; enforce mutation authorization, Registry-first build planning, runtime discovery/composition, and progressive disclosure.
 ---
 
 # Mission
@@ -16,29 +16,13 @@ Flow and Suite extend the Registry without changing existing Skill semantics:
 
 Never move a Skill under a Suite, treat Suite membership as ownership, or inject Suite policy into standalone Skill use. The same Skill or Flow may be referenced by multiple Suites.
 
-# Creation Gate
-
-The first persistence decision is whether the user explicitly asked to create/change a reusable Registry object.
-
-Normal task execution is not create mode. Requests such as `広告を作って`, `この文章を改善して`, `この会社を調査して`, and `画像を作って` stay in read-only use runtime. They may use existing Skill discovery, saved Flow execution, model/tool capability, or dynamic compose, but must not create or modify Skill/Flow/Suite packages.
-
-The Creation Gate passes only when the user expresses explicit creation/change intent, such as:
-
-- creating a Skill/Flow/Suite;
-- making a process reusable/persistent as a Registry object;
-- improving/changing a named Skill/Flow/Suite;
-- explicitly refactoring, splitting, merging, publishing, or rolling back Registry content.
-
-Task-quality language alone is insufficient. `この処理をもっと良くして` means improve the task unless the user clearly refers to a Registry object or persistence/reuse.
-
-Never auto-persist candidate Skills from ordinary task traffic. There is no automatic Skillizer path.
-
-# Modes
+# Modes and read-only behavior
 
 - `use`: select and execute existing Skills/Flows or model/tools without modifying repositories.
-- `create`: explicitly requested new reusable Registry object(s), after Registry-first gap analysis.
 - `audit`: evaluate without changing files.
-- `refactor`: explicitly improve an existing Registry object while preserving valid behavior/contract unless a breaking refactor is intentionally scoped.
+- ordinary/meta: explain/analyze without Registry mutation.
+- `create`: explicitly create one or more reusable Registry objects after Registry-first gap analysis.
+- `refactor`: explicitly change an existing Registry object while preserving valid behavior/contract unless a breaking refactor is intentionally scoped.
 - `split`: explicitly split an oversized Skill when responsibilities are independently reusable.
 - `merge`: explicitly combine genuinely overlapping Skills when one coherent responsibility remains.
 - `publish`: explicitly create a public-safe variant from private source material.
@@ -46,17 +30,33 @@ Never auto-persist candidate Skills from ordinary task traffic. There is no auto
 
 For Flow/Suite Registry work, apply the same mode meanings and repository workflow to the requested Registry object; Suite is not normally an executable target.
 
+# Creation Gate — Registry mutation authorization
+
+The Creation Gate is not a mode classifier. Classify the request first.
+
+Read-only `use`, read-only `audit`, and ordinary/meta behavior bypass the Creation Gate and must not mutate repositories.
+
+Mutation-oriented modes—`create`, `refactor`, `split`, `merge`, `publish`, and `rollback`—must pass the Creation Gate before any Registry write/delete/persisting branch workflow. The gate passes only when the user expresses explicit creation/change intent for a reusable Registry object or explicitly requests the corresponding mutation.
+
+Normal task execution is not mutation authorization. Requests such as `広告を作って`, `この文章を改善して`, `この会社を調査して`, and `画像を作って` stay in read-only use runtime. They may use existing Skill discovery, saved Flow execution, model/tool capability, or dynamic compose, but must not create or modify Skill/Flow/Suite packages.
+
+Task-quality language alone is insufficient. `この処理をもっと良くして` means improve the task unless the user clearly refers to a Registry object or persistence/reuse.
+
+If a mutation-oriented interpretation does not have explicit creation/change intent, deny mutation and continue only with a compatible read-only interpretation when one exists. Do not reclassify a legitimate read-only `audit` as `use` merely because no Creation Gate is needed.
+
+Never auto-persist candidate Skills from ordinary task traffic. There is no automatic Skillizer path.
+
 # Routing
 
-1. Apply the Creation Gate before any mutation-oriented routing.
-2. If the gate does not pass, route to `use`/ordinary-meta and never mutate a repository.
-3. For `use`, apply the runtime routing below and never write to a repository.
-4. For `audit`, load reviewer and the target Registry package.
-5. For `create`, run Registry Search → Capability Gap Plan → architect → author → reviewer.
-6. For `refactor`, load reviewer → inspect responsibility/contract/dependents → architect only if boundaries change → author → reviewer.
-7. For `split` or `merge`, load architect → author → reviewer.
-8. For `publish`, load publisher → reviewer.
-9. For `rollback`, use repository operations and validate the restored state.
+1. Determine the request's mode/behavior before applying any gate.
+2. For `use`, apply runtime routing below; no Creation Gate and no repository mutation.
+3. For `audit`, load reviewer and the target Registry package; no Creation Gate and no repository mutation unless the user separately authorizes a change.
+4. For ordinary/meta, answer read-only; no Creation Gate and no repository mutation.
+5. For `create`, require Creation Gate, then run Registry Search → Capability Gap Plan → architect → author → reviewer.
+6. For `refactor`, require Creation Gate, then reviewer → inspect responsibility/contract/dependents → architect only if boundaries change → author → reviewer.
+7. For `split` or `merge`, require Creation Gate, then architect → author → reviewer.
+8. For `publish`, require Creation Gate, then publisher → reviewer.
+9. For `rollback`, require Creation Gate, then use repository history and validate/review the restored state.
 
 # Registry-first create pipeline
 
@@ -86,13 +86,16 @@ If every required capability already exists, create no new Skill. If the user ex
 
 ## Extension safety
 
-Before `extend`:
+For any persisted change to an existing Skill:
 
-1. load the existing Skill and inspect its responsibility, trigger/non-trigger behavior, inputs/outputs, quality gate, and handoff contract;
-2. use `getRegistryDependents` when available to inspect affected Flow/Suite references;
-3. allow extension only when it preserves the existing responsibility and remains backward compatible;
-4. if the proposed work is an independent responsibility, design a separate Skill;
-5. if the existing Skill's meaning/contract would break, do not silently modify it as part of create—route to explicit `refactor` or propose a separate Skill.
+1. load the Skill and inspect responsibility, trigger/non-trigger behavior, inputs/outputs, quality gate, handoff contract, and failure modes;
+2. when `getRegistryDependents` is available, dependent-impact inspection is mandatory before approving the persisted change;
+3. for a public Skill, inspect both public dependents and private dependents in their explicitly selected Registry scopes/refs;
+4. for a private Skill, inspect private dependents in the explicitly selected private Registry scope/ref;
+5. use dependent evidence to evaluate backward compatibility and contract impact; the existence of dependents alone does not forbid extension;
+6. allow `extend` only when the responsibility remains coherent and the existing contract remains backward compatible;
+7. if the proposed work is an independent responsibility, design a separate Skill;
+8. if the existing Skill's meaning/contract would break, do not silently modify it as part of create—route to explicit `refactor` or propose a separate Skill.
 
 ## Flow-first reusable multi-capability design
 
@@ -144,7 +147,7 @@ Do not mechanically search for every request. Use ordinary/meta routing for expl
 
 Flow search is separate from `searchSkills`; do not blend Flow results into Skill scoring or discovery results. A local/single-responsibility request stays on the Skill path even when a broader Flow exists.
 
-If discovery finds no match during an ordinary task, do not create a Skill. Fall back to model/tool capability or dynamic compose as appropriate.
+If discovery finds no match during an ordinary task, fall back to model/tool capability or dynamic compose as appropriate. Do not transition to `create` and do not mutate the Registry.
 
 ## C. recommend
 
@@ -212,10 +215,10 @@ The same rule applies to explicit Flow selection, step exclusions, and Suite sco
 # Repository policy
 
 - GitHub files returned by Actions are authoritative; do not embed fixed copies of Skill bodies.
-- `use` mode is read-only. Never branch, write, delete, publish, or open a PR merely to use a Skill/Flow.
+- Read-only `use`, `audit`, and ordinary/meta behavior never branch, write, delete, publish, or open a PR merely to execute or inspect Registry content.
 - Ordinary tasks remain read-only even if no matching Registry object exists.
-- If use reveals an improvement opportunity, mention it only as a suggestion unless the user explicitly requests a Registry change.
-- Change modes must use a non-main branch and perform branch → write → validate → diff → reviewer.
+- If use/audit reveals an improvement opportunity, mention it only as a suggestion unless the user explicitly requests a Registry change.
+- Mutation-oriented modes must pass the Creation Gate, use a non-main branch, and perform branch → write → validate → diff → reviewer.
 - Never write directly to `main`.
 - Create a pull request only when the user explicitly requests PR creation or explicitly authorizes proceeding through PR when acceptable.
 - Public/private repositories are security boundaries. Multi-Skill use may combine public and private Skills read-only, but private content must never be written to public storage outside the publisher workflow.
@@ -228,24 +231,27 @@ For ordinary use, load resources in this order and only as needed:
 
 orchestrator → selected Flow/Skill → files required by that object → compact handoff → next selected Skill.
 
+For read-only audit, load only reviewer → target package/diff → required evidence; do not load authoring modules unless the user later authorizes change.
+
 For explicit creation/change, use:
 
 orchestrator → Registry Search results → Capability Gap Plan → required existing Skill/Flow/dependent details → architect → author → reviewer.
 
-Do not load architect/author merely because an ordinary task could theoretically become reusable.
+Do not load architect/author merely because an ordinary task or audit could theoretically become reusable.
 
 # Definition of done
 
 A routed request is complete only when:
 
-- the Creation Gate correctly separated ordinary task execution from Registry mutation;
-- the correct mode and use path were selected;
-- implicit concrete-task discovery remained available;
+- mode/behavior was classified before mutation authorization;
+- read-only use/audit/ordinary-meta bypassed the Creation Gate and performed no Registry mutation;
+- mutation-oriented modes passed the Creation Gate before persistence;
+- implicit concrete-task discovery remained available and failed discovery did not transition to create;
 - recommend/dynamic compose/saved Flow execution remained intact;
 - explicit create performed Registry Search and Capability Gap planning before authoring;
 - new Skills were limited to genuine gaps;
-- extension considered contract/dependents and did not hide breaking refactors;
+- persisted existing-Skill changes inspected contract and required dependent scopes when available;
+- extension did not hide breaking refactors;
 - multi-capability reusable process design preferred Flow + minimum independently reusable Skills;
 - user constraints and public/private boundaries were preserved;
-- use mode performed no repository mutation;
 - change modes completed validation, diff, and reviewer checks before optional PR creation.
