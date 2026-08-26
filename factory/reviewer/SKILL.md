@@ -1,6 +1,6 @@
 ---
 name: skill-reviewer
-description: Audit completed Agent Skill packages and Factory changes for correctness, registry placement, progressive disclosure, boundaries, contracts, eval coverage, security, validation, and regression risk before PR or publication.
+description: Audit Agent Skill packages and Factory changes for correctness, Registry-first build semantics, mutation authorization, placement, progressive disclosure, boundaries, contracts, eval coverage, security, validation, and regression risk before PR or publication.
 ---
 
 # Mission
@@ -62,8 +62,25 @@ Expect behavior coverage appropriate to the Skill, including:
 - validateSkill passes;
 - secret scan passes;
 - public/private boundary is preserved;
-- use-only work caused no repository mutation;
+- read-only use/audit work caused no repository mutation;
 - PR creation matches explicit user authorization.
+
+# Registry-first Build Pipeline review — v0.10
+
+Review these as independent checks for every relevant Factory/Registry change. A failure in any applicable item is blocking:
+
+1. **Ordinary-task mutation:** ordinary task execution did not create/change/persist Skill, Flow, or Suite state.
+2. **Mutation authorization:** no Registry object was persisted without explicit creation/change intent; read-only `use`, `audit`, and ordinary/meta did not require the Creation Gate.
+3. **Create ordering:** for explicit create, Registry Search occurred before Architect/Author and included Flow search when the reusable request was multi-capability/end-to-end.
+4. **Capability Gap Plan:** required capabilities were explicitly classified as `reuse`, `extend`, `create`, `model`, or `external_tool` before authoring.
+5. **Duplicate avoidance:** no blind duplicate Skill was created when an existing Skill adequately covered the responsibility.
+6. **Extension evidence:** before any persisted existing-Skill change, responsibility/contract was inspected and, when `getRegistryDependents` was available, required dependents were checked (public target: public + private; private target: private).
+7. **Breaking-change handling:** a contract/meaning-breaking change was not silently treated as `extend`; it was separated or routed to explicit refactor.
+8. **Flow-first design:** reusable known multi-capability processes considered Flow + independently reusable Skills rather than one giant Skill.
+9. **All-capabilities-existing case:** when all required Skills already existed, no unnecessary new Skill was authored; at most missing explicit reusable orchestration justified a Flow.
+10. **Compose persistence boundary:** temporary dynamic compose was not automatically persisted as a Flow without explicit user creation intent.
+
+Dependent existence alone is not a pass/fail criterion for extension. Review whether dependent evidence was actually used to assess backward compatibility and migration risk.
 
 # Flow package checks
 
@@ -98,6 +115,13 @@ For a completed Suite, verify:
 
 For runtime/Factory changes, verify existing modes and routes remain available, new behavior is covered by evals, implementation and instructions agree, and code guards enforce structural invariants when practical.
 
+For Registry-first v0.10 routing, additionally regression-check:
+
+- read-only `audit` remains directly reachable without Creation Gate and without repository mutation;
+- failed ordinary-task Skill discovery falls back to model/tool/dynamic compose and never transitions into create;
+- mutation-oriented modes require explicit authorization before persistence;
+- extension dependent-scope rules preserve the public/private boundary.
+
 For Flow/Suite Factory changes, explicitly regression-check:
 
 1. existing exact Skill invocation remains unchanged;
@@ -125,4 +149,4 @@ Also verify generalized Registry write/delete path guards preserve valid existin
 
 # Decision
 
-Return PASS only when no blocking correctness, security, placement, boundary, or regression issue remains. Distinguish unexecuted E2E checks from actual failures.
+Return PASS only when no blocking correctness, security, placement, boundary, mutation-authorization, Registry-first pipeline, or regression issue remains. Distinguish unexecuted E2E checks from actual failures.
