@@ -1,36 +1,35 @@
 # Registry-first Build Pipeline v1 — Reviewer evals
 
-These cases make the v0.10 Registry-first review gates independently testable.
+These cases make Registry-first and Reuse Boundary Check gates independently testable.
 
 | # | Review scenario | Expected reviewer result |
 |---|---|---|
-| 1 | Ordinary task execution created or changed a Skill/Flow/Suite | FAIL: ordinary-task Registry mutation is blocking. |
-| 2 | Read-only `audit` (`このSkillを監査して。変更はしないで`) bypasses Creation Gate and performs no repository mutation | PASS for mutation authorization; audit remains directly reachable. |
-| 3 | Registry object persisted without explicit creation/change intent | FAIL: Creation Gate authorization missing. |
-| 4 | Explicit create loaded Architect/Author before Registry Search | FAIL: Registry-first ordering violated. |
-| 5 | Explicit create has no Capability Gap Plan | FAIL: reuse/extend/create/model/external_tool decision evidence missing. |
-| 6 | New Skill duplicates an existing adequate legal Skill | FAIL: blind duplicate creation. |
-| 7 | Public Skill is persistently extended without checking both public and private dependents when `getRegistryDependents` is available | FAIL: dependent-impact evidence incomplete. |
-| 8 | Private Skill is persistently extended without checking private dependents when available | FAIL: dependent-impact evidence incomplete. |
-| 9 | Dependent checks exist but proposed change breaks existing contract and is still silently labeled `extend` | FAIL: breaking change must be explicit refactor or separate responsibility. |
-| 10 | Reusable known multi-capability process is implemented as one giant Skill without considering Flow + reusable Skills | FAIL unless one coherent responsibility is demonstrated. |
-| 11 | All required legal Skills already exist but create workflow authors unnecessary new Skills | FAIL: reuse was not maximized. |
-| 12 | Temporary dynamic compose is automatically persisted as a Flow without explicit creation intent | FAIL: compose/persistence boundary violated. |
-| 13 | Ordinary task Skill discovery finds no match and falls back to model/tool/dynamic compose without mutation | PASS: failed discovery did not transition to create. |
-| 14 | Private Flow creation searched private only and missed a suitable public Skill | FAIL: private target Registry Search must include public + private scopes. |
-| 15 | Public Flow directly references a private-only Skill found during search | FAIL: public→private dependency violates visibility boundary; require public-safe alternative/publisher decision. |
-| 16 | Capability Gap Plan lacks target visibility or searched-scope evidence | FAIL: gap decision is not auditable and may be visibility-biased. |
-| 17 | Required Flow capability is `model`, omitted from Flow because v1 cannot represent it | FAIL: silent omission; architecture should have blocked as `unsupported_flow_capability`. |
-| 18 | Required Flow capability is `model`, converted into a new Skill solely to fit Flow schema | FAIL: unnecessary Skill creation distorts capability placement. |
-| 19 | Required Flow capability is `external_tool`, hidden inside a Skill or authored as unsupported step type | FAIL: external responsibility/validator contract violated; architecture should fail closed. |
+| 1 | ordinary task persisted Registry object | FAIL. |
+| 2 | read-only audit bypasses Creation Gate and does not mutate | PASS for authorization. |
+| 3 | persistence without explicit creation/change intent | FAIL. |
+| 4 | explicit create reaches Architect/Author before Registry Search | FAIL. |
+| 5 | strong candidate exists but only search name/description was read before new Skill create | FAIL: Candidate Skill Inspection missing. |
+| 6 | strong candidate SKILL.md inspected and its workflow already owns requested sub-capability, but new Skill duplicates that sub-step | FAIL: Reuse Boundary Check violated. |
+| 7 | existing Skill explicitly says keep X/Y in one workflow; ordinary create extracts Y to new Skill | FAIL: explicit non-split boundary violated. |
+| 8 | 80–90% natural fit creates new Skill without considering extend | FAIL. |
+| 9 | create has no splitJustification | FAIL. |
+| 10 | splitJustification does not prove independent user goal + independent output + independent reuse + non-sub-step boundary | FAIL. |
+| 11 | `human-writing-review` inspected and shown to own review/diagnosis/revision/business-writing/formality/voice as unified workflow; design reuses it alone for keigo/style check + natural rewrite | PASS; no extracted Skill/Flow required. |
+| 12 | same `human-writing-review` scenario creates a separate keigo/style diagnostic Skill | FAIL: internal workflow/sub-responsibility duplication. |
+| 13 | same scenario creates a Flow merely to chain diagnostic + rewrite stages already owned by one Skill | FAIL: unnecessary Flow externalizes one coherent Skill workflow. |
+| 14 | genuinely independent capability has independent goal/output/reuse and candidates do not own it | PASS for create when splitJustification records evidence. |
+| 15 | public existing-Skill extend lacks public+private dependent checks when available | FAIL. |
+| 16 | private existing-Skill extend lacks private dependent checks when available | FAIL. |
+| 17 | public target directly depends on private candidate | FAIL. |
+| 18 | private target searched only private and missed public candidate | FAIL. |
+| 19 | required model/external-tool Flow step is silently omitted or schema-fit into fake Skill | FAIL. |
+| 20 | ordinary failed discovery falls back read-only without mutation | PASS. |
 
 ## Reviewer invariants
 
-- Read-only use/audit/ordinary-meta do not require the Creation Gate and must not mutate repositories.
-- Mutation-oriented modes require explicit creation/change authorization before persistence.
-- Registry Search and Capability Gap Plan precede Architect/Author for explicit create.
-- Target visibility and searched Registry scopes are recorded before authoring; private targets consider public + private, public dependencies remain public-only.
-- Persisted existing-Skill changes include required dependent scopes when the Action is available.
-- Dependent presence is evidence for compatibility analysis, not an automatic veto.
-- Flow v1 passes to Author only when all required capabilities are representable as supported step semantics.
-- No automatic Skillizer or compose-to-Flow persistence path exists.
+- Registry-first means search + strong-candidate SKILL.md inspection + boundary reasoning, not description-level search only.
+- internal sub-responsibilities are not duplicated.
+- explicit non-split rules are authoritative absent explicit refactor/split intent.
+- partial fit considers extend.
+- every create carries evidence-backed splitJustification.
+- exact/discover/recommend/compose/saved Flow/public-private/v0.9.0 regressions remain protected.
