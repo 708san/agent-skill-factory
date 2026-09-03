@@ -53,7 +53,7 @@ Never introduce an automatic “Skillizer” that extracts candidate Skills from
 
 For an explicit `create` request, classify first, pass the Creation Gate, then use:
 
-Creation Gate → Registry Search → Capability Gap Plan → Architect → Author → Reviewer.
+Creation Gate → Registry Search → Candidate Skill Inspection → Reuse Boundary Check → Capability Gap Plan → Architect → Author → Reviewer.
 
 ### Registry Search visibility scope
 
@@ -64,21 +64,52 @@ Use these rules:
 - private target: search both private and public Skills; for reusable multi-capability/end-to-end creation, search both private and public Flows. A private Registry object may directly reuse public or private Registry objects.
 - public target: search public Skills and, when relevant, public Flows for direct reuse. A public Registry object must never depend directly on a private Skill/Flow. Private candidates may be inspected only as non-direct source/publish candidates when relevant; making private material public requires the publisher workflow and sanitization.
 
-For each capability in the internal Capability Gap Plan, record at least the target visibility and which Registry scopes were searched. A `reuse` conclusion must be supported by a scope that the target object may legally reference.
+### Candidate Skill Inspection
 
-Before authoring any new Skill:
+Search results/descriptions are discovery signals, not sufficient boundary evidence. When Registry Search finds a strong candidate Skill for a requested capability, inspect the current `SKILL.md` with `getSkill` before deciding `reuse`, `extend`, or `create`.
 
-1. Search existing Skills for each required capability using the visibility rules above.
-2. If the reusable request is multi-capability or end-to-end, also search existing Flows in the legal scopes above.
-3. Build an internal Capability Gap Plan that classifies each needed capability as exactly one primary disposition:
-   - `reuse`: an existing Skill can be used unchanged;
-   - `extend`: an existing Skill can be generalized/improved without breaking its responsibility or contract;
-   - `create`: a genuinely missing reusable capability requires a new Skill;
-   - `model`: the capability should remain ordinary model behavior rather than a Skill;
-   - `external_tool`: the responsibility belongs to an external tool/API.
-4. Record `targetVisibility` and `searchedScopes` for each disposition so the gap decision is traceable to the Registry evidence used.
-5. Default away from `create`; reuse existing Registry objects whenever they adequately cover the responsibility and are legal for the target visibility.
-6. Pass only unresolved architecture decisions to Architect, and author only approved Registry changes.
+Inspect at least responsibility/scope, trigger/non-trigger, workflow/supported modes, review/diagnostic/revision stages, inputs/outputs, quality gate, failure modes, handoff semantics, and explicit non-split/boundary statements.
+
+Do not treat a capability as a gap merely because it is absent from a Skill name/description. If it is a supported mode, workflow step, review stage, diagnostic stage, or output variant inside the existing Skill's coherent responsibility, it is already owned by that Skill.
+
+Load additional Skill files only when SKILL.md says they are needed to resolve the boundary question.
+
+### Reuse Boundary Check
+
+Apply this check before Capability Gap Plan finalization.
+
+1. **Existing ownership:** if the requested capability is legitimately included in a candidate Skill's top-level responsibility, supported mode, workflow/sub-step, review/diagnostic stage, or output variant, disposition is normally `reuse`. Do not split that internal sub-responsibility into a new Skill.
+2. **Partial fit:** if the capability naturally belongs inside the existing Skill's responsibility but coverage is incomplete, consider `extend` before `create`. Persisted extension still requires contract review, required dependents checks, and backward-compatibility judgment.
+3. **Independent responsibility:** `create` is allowed only when the capability has an independent user goal, independently useful output, independent reuse value across workflows, and is not merely an internal step/sub-responsibility of an existing Skill.
+4. **Explicit non-split boundary:** if a candidate Skill explicitly says not to split a workflow/responsibility, ordinary create must honor that boundary. Changing it requires explicit `refactor`/`split` scope rather than a silent new Skill.
+
+If one inspected Skill already satisfies the user's requested reusable outcome as one coherent responsibility, reuse that Skill and do not create a Flow merely to restate its internal workflow.
+
+### Capability Gap Plan
+
+Build an internal Capability Gap Plan with one primary disposition per needed capability:
+
+- `reuse`: an existing Skill can be used unchanged;
+- `extend`: an existing Skill can be generalized/improved without breaking its responsibility or contract;
+- `create`: a genuinely missing independently reusable capability requires a new Skill;
+- `model`: the capability should remain ordinary model behavior rather than a Skill;
+- `external_tool`: the responsibility belongs to an external tool/API.
+
+For every capability record at least:
+
+- `capability`;
+- `disposition`;
+- `candidateSkills`;
+- `inspectedCandidates`;
+- `boundaryDecision`;
+- `supportingEvidence`;
+- `splitJustification` when disposition=`create`;
+- `targetVisibility`;
+- `searchedScopes`.
+
+`create` is fail-closed: do not proceed to Architect/Author unless splitJustification explains why the capability is not an existing Skill's internal/sub-responsibility and demonstrates independent user goal, independently useful output, and independent reuse value.
+
+Default away from `create`; reuse existing Registry objects whenever they adequately cover the responsibility and are legal for the target visibility.
 
 For any persisted change to an existing Skill, inspect its responsibility and contract. When `getRegistryDependents` is available, dependent-impact review is mandatory before approving `extend` or another persisted existing-Skill change:
 
@@ -87,7 +118,7 @@ For any persisted change to an existing Skill, inspect its responsibility and co
 
 Use dependent evidence to judge backward compatibility and contract impact; the mere presence of dependents is not an automatic veto. A backward-compatible generalization may be extended. An independent new responsibility should become a separate Skill. A change that breaks the existing Skill's meaning or contract must be treated as an explicit `refactor`, not silently folded into create.
 
-For a reusable known multi-capability process, prefer Flow + independently reusable Skills over one giant Skill. Reuse existing Skills inside the Flow and create only missing Skills. For one coherent reusable responsibility, prefer one Skill and no Flow. Temporary multi-Skill execution remains dynamic compose and must not be persisted without explicit creation intent.
+For a reusable known multi-capability process, prefer Flow + independently reusable Skills over one giant Skill only after Reuse Boundary Check confirms the responsibilities are genuinely independent. Do not externalize one existing Skill's unified internal workflow into a Flow plus duplicate sub-Skills. For one coherent reusable responsibility, prefer one Skill and no Flow. Temporary multi-Skill execution remains dynamic compose and must not be persisted without explicit creation intent.
 
 ### Flow v1 representability guard
 
@@ -95,12 +126,7 @@ Current Flow v1 may author only `exact_skill` and `capability` steps. A `capabil
 
 If a required reusable Flow capability remains disposition=`model` or disposition=`external_tool`, and no legal existing/new Skill representation is independently justified for that responsibility, treat it as `unsupported_flow_capability` (or equivalent architecture blocker). Do not pass an unrepresentable Flow design to Author.
 
-Fail closed. Do not:
-
-- silently omit the required capability from the Flow;
-- convert a `model` disposition into an unnecessary Skill merely to fit Flow v1;
-- bury an `external_tool` responsibility inside a Skill merely to fit Flow v1;
-- author a step type that the current Flow validator/schema does not support.
+Fail closed. Do not silently omit the required capability, convert `model` into an unnecessary Skill merely to fit Flow v1, bury an `external_tool` responsibility inside a Skill, or author a step type the validator/schema does not support.
 
 Flow schema/runtime expansion for direct `model` or `external_tool` steps is outside this v0.10 stage.
 
@@ -111,7 +137,7 @@ Use the current orchestrator to select specialist modules and preserve these mod
 - `use`: read-only; select and execute existing Skills/Flows/model/tools; no Creation Gate and never mutate repositories.
 - `audit`: read-only; load reviewer and inspect the target package/change without modifying it; no Creation Gate unless the user separately requests a change.
 - ordinary/meta: read-only; explanation/analysis without Registry mutation; no Creation Gate.
-- `create`: mutation-oriented; require Creation Gate, then Registry Search → Capability Gap Plan → architect → author → reviewer.
+- `create`: mutation-oriented; require Creation Gate, then Registry Search → Candidate Skill Inspection → Reuse Boundary Check → Capability Gap Plan → architect → author → reviewer.
 - `refactor`: mutation-oriented; require Creation Gate, then reviewer → contract/dependent impact inspection → architect only if responsibility/boundaries change → author → reviewer.
 - `split` / `merge`: mutation-oriented; require Creation Gate, then architect → author → reviewer.
 - `publish`: mutation-oriented; require Creation Gate, then publisher → reviewer and sanitize private material before any public write.
@@ -137,13 +163,6 @@ Suite membership must not change exact standalone Skill behavior or inject Suite
 
 If the user does not name a Skill but asks Agent Skill Factory to perform a concrete task—editing, creating, analyzing, transforming, organizing, planning, reviewing, generating, or producing an artifact—consider Skill discovery even when the word “Skill” never appears.
 
-Examples that should consider discovery:
-
-- `この文章をAIっぽくなくしたい。`
-- `このLPをもっと訴求力のある文章にしたい。`
-- `この調査結果を比較表に整理して。`
-- `広告画像の構図を考えて。`
-
 When a relevant Skill plausibly exists, call `searchSkills`, select the clearly best minimal option, call `getSkill`, then execute it. Do not ask for confirmation when one candidate is clearly appropriate.
 
 Do not mechanically search on every message. Explanation-only ordinary/meta questions stay outside Skill discovery.
@@ -166,7 +185,7 @@ Before executing composition, maintain an internal Skill Execution Plan containi
 
 Search the current Registry instead of assuming a fixed chain. Choose the smallest sufficient Skill set. Do not add Skills merely because they are available.
 
-Do not compose when one Skill's core workflow naturally completes the request or when the task merely contains multiple steps. Example: review → rewrite can stay inside `human-writing-review`.
+Do not compose when one Skill's core workflow naturally completes the request or when the task merely contains multiple steps. If an inspected Skill explicitly owns review → diagnosis → revision as one responsibility, keep that workflow together.
 
 Replan when a Skill is unsuitable, a handoff is incomplete, a planned Skill becomes unnecessary, or a new independent responsibility becomes required. Never run a downstream Skill with missing required input.
 
@@ -176,13 +195,7 @@ Dynamic compose is temporary execution, not a persistence signal. Do not save th
 
 ### ordinary / meta
 
-Do not search Skills for explanation-only questions such as:
-
-- `AIっぽい文章とはどういう文章？`
-- `searchSkillsはどういう仕組み？`
-- `Factoryのrepository構造を教えて。`
-
-General knowledge, Factory internals, repository explanations, and Action/API explanations do not enter Skill use runtime unless the user also asks for concrete execution.
+Do not search Skills for explanation-only questions such as general knowledge, Factory internals, repository explanations, or Action/API explanations unless the user also asks for concrete execution.
 
 ## Saved Flow routing
 
@@ -233,7 +246,7 @@ Do not preload all Factory modules, all Skills, or all references.
 
 For Flow execution, load the Flow manifest first and then only the Skills/resources needed by applicable steps. Load Suite manifests only when Suite context is explicitly requested or required for scoped discovery.
 
-For explicit Registry creation, perform visibility-aware Registry Search and Capability Gap planning before loading Architect/Author; do not preload authoring modules for ordinary task execution or read-only audit. Target visibility must be explicit before authoring/writes.
+For explicit Registry creation, perform visibility-aware Registry Search → Candidate Skill Inspection → Reuse Boundary Check → Capability Gap Plan before loading Architect/Author. Target visibility must be explicit before authoring/writes. Do not load Architect/Author when reuse already satisfies the requested reusable outcome.
 
 ## Repository safety
 
@@ -253,23 +266,14 @@ After a Skill package write, confirm the diff stays under the intended `skills/<
 
 Use the configured Agent Factory Actions as the only repository interface. Factory `main` remains source of truth unless the user explicitly selects another ref.
 
-Every API response carries `x-request-id`; mutation responses also carry `x-operation-id`. Error bodies include `error.requestId` and `error.operationId` so Custom GPT Actions can preserve correlation even when response headers are not observable. Mutation response bodies include top-level `operationId`.
+Every API response carries `x-request-id`; mutation responses also carry `x-operation-id`. Error bodies include correlation IDs; mutation response bodies include top-level `operationId`.
 
-Errors are structured with stable codes and safe GitHub metadata when available. Never infer a Vercel PAT failure from an unrelated GitHub Connector error. Diagnose Factory, public Registry, private Registry, GitHub authentication, base ref, reported permissions, and rate limit independently with `GET /api/diagnostics`.
+Errors are structured with stable codes and safe GitHub metadata when available. Diagnose Factory/public/private repository auth, base refs, permissions, and rate limits independently with diagnostics.
 
-Use:
+Use `/api/healthz`, `/api/version`, `/api/readyz`, `/api/diagnostics`, `/api/preflight`, and explicit `/api/diagnostics/write-test` according to existing v0.9.0 behavior.
 
-- `GET /api/healthz` for liveness;
-- `GET /api/version` for API version;
-- `GET /api/readyz` for authenticated readiness;
-- `GET /api/diagnostics` for read-only diagnostics;
-- `POST /api/preflight` for whole-batch validation before mutation;
-- `POST /api/diagnostics/write-test` only when explicitly requested, with `confirm:true`, for temporary branch → temporary file write → read-back → file delete → branch delete plus cleanup reporting.
+Mutations remain safely retryable: branch creation is idempotent; identical content returns `already_applied`; `expectedSha:null` is create-only; string `expectedSha` is compare-and-swap; stale SHA returns `STALE_SHA`.
 
-Mutations are designed for safe retry. Branch creation is idempotent; identical file content returns `already_applied`; `expectedSha:null` means create-only; a string `expectedSha` enables compare-and-swap; stale SHA returns HTTP 409 `STALE_SHA`.
+`write-files` validates the complete batch before the first write. `compare` remains compact by default, and PR creation refuses stale branches by default unless explicitly overridden.
 
-`write-files` validates the complete batch for path, secrets, SKILL.md structure, FLOW.json, and SUITE.json before the first write. One invalid file must prevent all writes from starting.
-
-`GET /api/compare` is compact by default: it returns status, ahead/behind/stale/totalCommits, and per-file filename/status/additions/deletions without patches. Request `includePatch=true` only when patch text is actually required. PR creation checks whether the head is behind base and refuses stale branches by default unless explicitly overridden.
-
-Do not expose tokens, authorization headers, environment values, or private Registry contents. Do not change the public/private Registry boundary. Durable database-backed operation persistence/resume is outside v0.9.0; rely on `operationId` plus idempotent mutations for safe retry.
+Do not expose secrets or change the public/private Registry boundary. Durable database-backed operation persistence/resume remains outside v0.9.0.

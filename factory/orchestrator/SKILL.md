@@ -1,6 +1,6 @@
 ---
 name: skill-factory-orchestrator
-description: Route Agent Skill Factory requests across read-only behavior and explicit Registry mutation modes; enforce mutation authorization, visibility-aware Registry-first planning, runtime discovery/composition, and progressive disclosure.
+description: Route Agent Skill Factory requests across read-only behavior and explicit Registry mutation modes; enforce mutation authorization, visibility-aware Registry-first planning, Candidate Skill Inspection, Reuse Boundary Check, runtime discovery/composition, and progressive disclosure.
 ---
 
 # Mission
@@ -52,7 +52,7 @@ Never auto-persist candidate Skills from ordinary task traffic. There is no auto
 2. For `use`, apply runtime routing below; no Creation Gate and no repository mutation.
 3. For `audit`, load reviewer and the target Registry package; no Creation Gate and no repository mutation unless the user separately authorizes a change.
 4. For ordinary/meta, answer read-only; no Creation Gate and no repository mutation.
-5. For `create`, require Creation Gate, then run Registry Search → Capability Gap Plan → architect → author → reviewer.
+5. For `create`, require Creation Gate, then run Registry Search → Candidate Skill Inspection → Reuse Boundary Check → Capability Gap Plan → architect → author → reviewer.
 6. For `refactor`, require Creation Gate, then reviewer → inspect responsibility/contract/dependents → architect only if boundaries change → author → reviewer.
 7. For `split` or `merge`, require Creation Gate, then architect → author → reviewer.
 8. For `publish`, require Creation Gate, then publisher → reviewer.
@@ -67,14 +67,63 @@ Before designing new Registry objects:
 1. decompose the requested reusable outcome into required capabilities;
 2. determine the intended target visibility before authoring or writing;
 3. search the Registry according to the visibility rules below;
-4. load promising existing objects only as needed to judge responsibility and contract fit;
-5. do not author until search is complete enough to distinguish reuse, extension, genuine gaps, and visibility constraints.
+4. identify strong existing Skill candidates for each capability;
+5. do not author until search and candidate inspection are complete enough to distinguish reuse, extension, genuine gaps, and visibility constraints.
 
 ### Visibility-aware search scope
 
 - private target: search both private and public Skills. For a reusable multi-capability/end-to-end request, search both private and public Flows. A private object may directly reuse public or private Registry objects.
 - public target: search public Skills and, when relevant, public Flows for direct reuse. A public object must not directly depend on private Registry objects. Private objects may be inspected only as non-direct source/publish candidates when useful; exposing private material publicly requires publisher workflow/sanitization.
 - target visibility not yet determined: do not decide a capability gap from only one Registry. Search sufficient public/private evidence to avoid a false gap, then make target visibility explicit before finalizing the gap plan or authoring/writing.
+
+Search results identify candidates; they do not prove capability gaps.
+
+## Candidate Skill Inspection
+
+When Registry Search returns a strong candidate for a requested capability, call `getSkill` and inspect the current SKILL.md before deciding `reuse`, `extend`, or `create`.
+
+Inspect at least:
+
+- responsibility / scope;
+- trigger / non-trigger;
+- workflow and supported modes;
+- review / diagnostic / revision stages;
+- inputs / outputs;
+- quality gate;
+- failure modes;
+- handoff semantics;
+- explicit boundary/non-split statements such as `do not split`, `keep X and Y in one workflow`, `X is part of this responsibility`, or equivalent.
+
+Do not decide from name/description alone. A capability may already be owned as a supported mode, workflow step, review stage, diagnostic stage, or output variant even when it is not named in the Skill title.
+
+Load extra Skill resources only when SKILL.md indicates they are required to resolve the boundary question.
+
+## Reuse Boundary Check
+
+Run before Capability Gap Plan finalization for every proposed new Skill capability.
+
+### Existing Skill already owns the capability
+
+If an inspected candidate legitimately includes the capability inside its coherent responsibility—as a supported mode, workflow/sub-step, review/diagnostic stage, or output variant—use `reuse`. Do not carve that internal sub-responsibility into a new Skill.
+
+If one existing Skill already owns the complete requested reusable workflow, reuse that Skill alone; do not create a Flow merely to mirror its internal stages.
+
+### Partial fit
+
+If the capability naturally belongs inside the existing Skill's responsibility but coverage is incomplete, consider `extend` before `create`. Persisted extend requires contract review, required dependent-scope inspection, and backward-compatibility analysis.
+
+### Independent responsibility
+
+`create` is allowed only when all are true:
+
+- independent user goal;
+- independently useful output;
+- independent reuse value across workflows;
+- not an implementation detail/sub-step of an existing Skill.
+
+### Explicit non-split boundary
+
+If an inspected Skill says `do not split`, `keep X and Y in one workflow`, `X is part of this responsibility`, or equivalent, ordinary create must respect that boundary. Changing it requires explicit refactor/split intent.
 
 ## Capability Gap Plan
 
@@ -88,19 +137,27 @@ Maintain an internal plan with one primary disposition per required capability:
 
 For every capability record at least:
 
+- `capability`;
+- `disposition`;
+- `candidateSkills`;
+- `inspectedCandidates`;
+- `boundaryDecision`;
+- `supportingEvidence`;
+- `splitJustification` when disposition=`create`;
 - `targetVisibility`;
-- `searchedScopes` (for example public Skills, private Skills, public Flows, private Flows as applicable);
-- the chosen disposition and supporting Registry evidence.
+- `searchedScopes`.
 
-A `reuse` disposition is valid only when the target may legally reference the reused object. New Skill creation is not the default. Minimize new persistent objects.
+A `create` disposition is blocked unless `splitJustification` explains why the capability is not an existing Skill's internal/sub-responsibility and demonstrates an independent user goal, independently useful output, and independent reuse value.
 
-If every required capability already exists, create no new Skill. If the user explicitly requested a reusable known multi-capability process and only orchestration is missing, create only the Flow when appropriate.
+A `reuse` disposition is valid only when the target may legally reference the reused object. New Skill creation is not the default. Description-level search alone is insufficient evidence for `create` when a strong candidate exists.
+
+If every required capability already exists, create no new Skill. If one existing Skill owns the full coherent requested workflow, create no Flow merely to externalize its stages. If multiple independent Skills exist and only reusable orchestration is missing, create only the Flow when appropriate.
 
 ## Extension safety
 
 For any persisted change to an existing Skill:
 
-1. load the Skill and inspect responsibility, trigger/non-trigger behavior, inputs/outputs, quality gate, handoff contract, and failure modes;
+1. load the Skill and inspect responsibility, trigger/non-trigger behavior, workflow, inputs/outputs, quality gate, handoff contract, and failure modes;
 2. when `getRegistryDependents` is available, dependent-impact inspection is mandatory before approving the persisted change;
 3. for a public Skill, inspect both public dependents and private dependents in their explicitly selected Registry scopes/refs;
 4. for a private Skill, inspect private dependents in the explicitly selected private Registry scope/ref;
@@ -117,7 +174,9 @@ For explicit requests such as `○○する再利用可能な仕組みを作っ�
 - reusable known multi-capability process → Flow + independently reusable Skills;
 - temporary multi-Skill execution → dynamic compose, no persistence.
 
-In a new Flow, maximize reuse of existing Skills and create only missing Skill capabilities identified by the Capability Gap Plan. Do not build a giant Skill merely to avoid a Flow.
+Apply Reuse Boundary Check before Flow-first decomposition. Do not transform one existing Skill's intentionally unified internal workflow into a Flow plus duplicate sub-Skills.
+
+In a new Flow, maximize reuse of existing Skills and create only missing independently reusable Skill capabilities identified by the Capability Gap Plan. Do not build a giant Skill merely to avoid a Flow.
 
 ### Flow v1 representability guard
 
@@ -196,6 +255,8 @@ Before execution, form an internal Skill Execution Plan containing user goal, se
 
 Search the current Registry and select the minimum Skill set needed. Do not use a Skill simply because it is available. Do not compose merely because a workflow has multiple steps.
 
+If one Skill's core workflow naturally owns several internal stages—such as review → diagnosis → revision—keep them inside that Skill rather than composing or extracting sub-Skills merely because the stages are separately describable.
+
 For a multi-responsibility request, first use a saved Flow only when a registered Flow strongly matches the requested end-to-end outcome. If no adequate Flow exists, keep dynamic compose.
 
 Dynamic compose is read-only temporary execution; it never implies Flow creation without explicit persistence intent.
@@ -262,9 +323,9 @@ For read-only audit, load only reviewer → target package/diff → required evi
 
 For explicit creation/change, use:
 
-orchestrator → visibility-aware Registry Search results → Capability Gap Plan with targetVisibility/searchedScopes → required existing Skill/Flow/dependent details → architect → author → reviewer.
+orchestrator → visibility-aware Registry Search results → strong candidate SKILL.md inspection → Reuse Boundary Check → Capability Gap Plan with candidate/boundary/visibility evidence → required existing Skill/Flow/dependent details → architect → author → reviewer.
 
-Do not load architect/author merely because an ordinary task or audit could theoretically become reusable. Do not load Author for a Flow design blocked as `unsupported_flow_capability`.
+Do not load architect/author merely because an ordinary task or audit could theoretically become reusable. Do not load architect/author when reuse already satisfies the explicit create request. Do not load Author for a Flow design blocked as `unsupported_flow_capability`.
 
 # Definition of done
 
@@ -275,12 +336,13 @@ A routed request is complete only when:
 - mutation-oriented modes passed the Creation Gate before persistence;
 - implicit concrete-task discovery remained available and failed discovery did not transition to create;
 - recommend/dynamic compose/saved Flow execution remained intact;
-- explicit create performed visibility-aware Registry Search and Capability Gap planning before authoring;
-- target visibility was explicit before authoring/writes and gap evidence recorded searched Registry scopes;
-- new Skills were limited to genuine gaps and legal visibility relationships;
+- explicit create performed visibility-aware Registry Search, Candidate Skill Inspection, Reuse Boundary Check, and Capability Gap planning before authoring;
+- strong candidates were inspected beyond description-level metadata;
+- every create disposition has evidence-backed splitJustification proving independent responsibility;
+- partial fits considered extend and explicit non-split boundaries were preserved;
+- target visibility and searched scopes were explicit before authoring/writes;
 - persisted existing-Skill changes inspected contract and required dependent scopes when available;
-- extension did not hide breaking refactors;
-- multi-capability reusable process design preferred Flow + minimum independently reusable Skills;
+- multi-capability Flow-first design did not decompose one coherent existing Skill workflow;
 - unrepresentable required model/external-tool Flow capabilities failed closed before Author;
 - user constraints and public/private boundaries were preserved;
 - change modes completed validation, diff, and reviewer checks before optional PR creation.

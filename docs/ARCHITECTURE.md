@@ -2,9 +2,9 @@
 
 ## Principle
 
-GitHub is the source of truth. ChatGPT Web is a client that loads current Factory modules and Registry objects through a narrow Action API.
+GitHub is the source of truth. ChatGPT Web is a client that loads current Factory modules and Registry objects through Actions.
 
-Agent Skill Factory separates read-only runtime behavior from Registry mutation. Ordinary tasks may discover and execute existing Skills/Flows or compose them dynamically; read-only audits may inspect Registry packages; neither mutates the Registry. Persistence begins only after explicit creation/change authorization.
+Agent Skill Factory separates read-only runtime behavior from Registry mutation. Ordinary tasks and read-only audits do not mutate the Registry. Persistence begins only after explicit creation/change authorization.
 
 ## Repositories
 
@@ -14,100 +14,104 @@ Agent Skill Factory separates read-only runtime behavior from Registry mutation.
 
 ## Factory responsibilities
 
-- Orchestrator: request classification, mutation-only Creation Gate, visibility-aware Registry Search, Capability Gap Plan, runtime exact/discover/recommend/compose/Flow routing
-- Architect: Registry-first capability placement, visibility and reuse boundaries, dependent-impact analysis, Flow-first multi-capability design, Flow representability, contracts and handoffs
-- Author: implement only approved and currently representable Skill/Flow/Suite package changes
-- Reviewer: independent routing/authorization/visibility/representability/behavior/outcome/regression evaluation
+- Orchestrator: request classification, Creation Gate, visibility-aware Registry Search, Candidate Skill Inspection, Reuse Boundary Check, Capability Gap Plan, runtime routing
+- Architect: verify reuse/extension/create boundaries, independent-responsibility tests, dependent impact, Flow-first design, representability
+- Author: implement only approved Registry changes
+- Reviewer: independently enforce search/inspection/boundary/gap/visibility/representability/regression gates
 - Publisher: private → public-safe conversion
 
 ## Routing and mutation authorization
 
-Classify the request first:
-
-- read-only: `use`, `audit`, ordinary/meta → no Creation Gate, repository mutation forbidden;
-- mutation-oriented: `create`, `refactor`, `split`, `merge`, `publish`, `rollback` → Creation Gate required before persistence.
-
-The Creation Gate is therefore a Registry mutation authorization gate, not a mode gate. A read-only audit remains reachable without creation/change intent.
+Read-only `use`, `audit`, ordinary/meta bypass Creation Gate. Mutation-oriented `create`, `refactor`, `split`, `merge`, `publish`, `rollback` require explicit authorization before persistence.
 
 ## Registry-first Build Pipeline
 
-After an explicit `create` has been classified and mutation authorization passes:
+Explicit create follows:
 
-`Creation Gate → Registry Search → Capability Gap Plan → Architect → Author → Reviewer`
+`Creation Gate → Registry Search → Candidate Skill Inspection → Reuse Boundary Check → Capability Gap Plan → Architect → Author → Reviewer`
 
 ### Registry Search visibility
 
-Search scope is determined by the target Registry visibility:
+- private target: search public + private Skills and, when relevant, public + private Flows; private objects may reuse either.
+- public target: direct reuse is public-only; private source requires publisher/public-safe handling.
+- unresolved visibility: do not finalize gaps from one Registry; visibility is explicit before authoring/writes.
 
-- private target: search both private and public Skills; for multi-capability/end-to-end design, search both private and public Flows. A private object may directly reuse public or private objects.
-- public target: search public Skills/Flows for direct reuse. Public objects never gain private Registry dependencies. Private objects may be inspected only as non-direct source/publish candidates when useful; publicizing private material goes through Publisher/sanitization.
-- visibility unresolved: do not finalize a gap from one Registry. Gather sufficient public/private evidence, then make target visibility explicit before authoring or writing.
+### Candidate Skill Inspection
 
-Capability Gap Plan evidence includes `targetVisibility` and the Registry scopes searched for each capability decision. This prevents false gaps and illegal reuse.
+Search metadata is not boundary evidence. A strong candidate Skill must be loaded with `getSkill` before deciding a capability gap.
 
-### Capability Gap Plan
+Inspect responsibility/scope, trigger/non-trigger, workflow/supported modes, review/diagnostic/revision stages, inputs/outputs, quality gate, failure modes, handoffs, and explicit boundary/non-split rules.
 
-Each required capability is classified as:
+A capability can be owned inside a Skill even when absent from its title/description. Supported modes, workflow steps, review stages, diagnostic stages, and output variants are part of the ownership analysis.
 
-- `reuse` — use an existing legal Skill unchanged;
-- `extend` — backward-compatible generalization/improvement of an existing Skill;
-- `create` — genuinely missing reusable capability;
-- `model` — ordinary model behavior, no Registry object;
-- `external_tool` — external tool/API responsibility.
+### Reuse Boundary Check
 
-The plan minimizes new persistent objects rather than defaulting to Skill creation.
+Before Capability Gap Plan finalization:
+
+1. **Existing ownership:** if a capability is already a legitimate part of an existing coherent Skill workflow, reuse that Skill; do not extract the sub-step.
+2. **Partial fit:** if the capability naturally belongs inside the existing responsibility but coverage is incomplete, consider backward-compatible extension before creation.
+3. **Independent responsibility:** create only when the capability has an independent user goal, independently useful output, independent cross-workflow reuse value, and is not merely an internal implementation/sub-step.
+4. **Explicit non-split:** `do not split`, `keep X and Y in one workflow`, and equivalent declarations are authoritative for ordinary create. Changing them requires explicit refactor/split.
+
+If one existing Skill already satisfies the requested reusable workflow, reuse it alone. Do not create a Flow merely to externalize that Skill's internal stages.
+
+### Capability Gap Plan evidence
+
+Each capability records:
+
+- capability
+- disposition (`reuse` / `extend` / `create` / `model` / `external_tool`)
+- candidateSkills
+- inspectedCandidates
+- boundaryDecision
+- supportingEvidence
+- splitJustification for create
+- targetVisibility
+- searchedScopes
+
+`create` is blocked unless splitJustification explains why inspected candidates do not already own the capability and demonstrates independent user goal, output, and reuse value.
 
 ### Extension safety
 
-Any persisted existing-Skill change requires responsibility/contract review. When `getRegistryDependents` is available, dependent-impact inspection is mandatory:
+Persisted existing-Skill changes inspect responsibility/contract and dependents when available:
 
-- public Skill → public dependents + private dependents;
+- public Skill → public + private dependents;
 - private Skill → private dependents.
 
-Queries use explicitly selected Registry scopes/refs. Dependent evidence informs backward compatibility and migration risk; the existence of dependents alone does not approve or forbid an extension. Backward-compatible generalization within the same responsibility may extend. Independent responsibility becomes a separate Skill. Contract-breaking change becomes explicit refactor rather than an incidental create side effect.
+Dependents inform compatibility, not automatic veto. Breaking changes require explicit refactor.
 
 ### Flow-first multi-capability design
 
-- single reusable responsibility → Skill
-- reusable known multi-capability process → Flow + independently reusable Skills
+- one coherent reusable responsibility → Skill
+- genuinely multi-capability reusable process → Flow + independently reusable Skills
 - temporary multi-Skill execution → dynamic compose
 
-Flow design reuses existing legal Skills first and creates only genuine independently reusable capability gaps. If all Skills already exist, only a Flow may be needed. If an existing Flow already matches, no new object is needed.
+Flow-first runs after Reuse Boundary Check; it must not decompose one existing Skill's intentionally unified workflow.
 
 ### Flow v1 representability
 
-Current Flow v1 supports only `exact_skill` and `capability` steps. `capability` is resolved through Skill discovery; Flow v1 does not directly execute model-native responsibilities or external tool/API actions.
+Flow v1 supports only `exact_skill` and Skill-discovered `capability`. Unrepresentable required `model`/`external_tool` capabilities fail closed as `unsupported_flow_capability` or equivalent. No silent omission, fake Skill creation, hidden external tool, or unsupported step type.
 
-If a required reusable Flow capability remains disposition=`model` or `external_tool` and there is no independently justified legal Skill representation, architecture fails closed with `unsupported_flow_capability` (or equivalent). The required capability must not be silently omitted, converted into an unnecessary Skill merely to fit schema, hidden inside an unrelated Skill, or authored as an unsupported step type.
+Direct model/external-tool Flow steps remain a future runtime/schema candidate.
 
-Only Flow designs fully representable by current v1 step semantics proceed to Author.
+## Canonical regression example: human-writing-review
 
-Direct `model` and `external_tool` Flow step support is a candidate for the next Factory/runtime/schema stage, not part of v0.10 stage 1. Adding it will require coordinated Flow schema, validator, runtime, authoring, review, and compatibility work.
+`human-writing-review` is expected to be inspected as a strong candidate for requests combining writing review/diagnosis and revision. When its current SKILL.md defines review, diagnosis, revision, business writing, formality/voice, and an explicit unified review+revision boundary, a request such as `敬語・文体の不整合チェックと自然なリライトができる仕組みを作って` should normally resolve to `reuse` of that Skill. The diagnostic sub-step must not be extracted into a new Skill, and no Flow should be created merely to mirror internal review → revision stages.
+
+Changing that ownership boundary is refactor/split work, not ordinary create.
 
 ## Runtime execution paths
 
-The build pipeline does not replace runtime behavior:
-
-- exact Skill invocation remains direct;
-- implicit existing-Skill discovery remains available for concrete tasks;
-- recommend remains read-only;
-- saved Flow execution remains available;
-- dynamic compose remains available for temporary multi-capability tasks;
-- use mode remains read-only;
-- audit remains read-only and does not require mutation authorization.
-
-A failed Registry search during ordinary execution does not transition into create mode.
+Exact Skill invocation, implicit discovery, recommend, dynamic compose, saved Flow execution, Suite contextual scope, and read-only audit/use remain unchanged. Failed ordinary-task discovery never transitions to create.
 
 ## Public/private boundary
 
-Public Registry objects may reference public objects only. Private Registry objects may reference public or private objects explicitly. Runtime read-only composition may use permitted public/private material, but private contents must never be persisted into public storage outside the publisher workflow.
-
-Dependent-impact inspection follows the boundary: public target Skills can affect both public and private dependents; private target Skills are inspected within private dependents only.
+Public Registry objects reference public only. Private Registry objects may reference public/private. Private content is never persisted publicly outside publisher workflow.
 
 ## Repository workflow
 
-Mutation-oriented modes require Creation Gate authorization, use a non-main branch, and follow branch → write → validate → diff → reviewer. Direct writes to `main` are forbidden. PR creation remains explicit opt-in.
+Mutation modes use non-main branches and branch → write → validate → diff → reviewer. Direct main writes are forbidden. PR creation remains explicit opt-in.
 
-## Tool responsibilities
+## API
 
-Repository reads/search, dependents lookup, branch creation, validation, diff, PR, and rollback plumbing belong to the Action API rather than SKILL.md judgment logic. v0.10 Registry-first routing and Flow representability are implemented with existing Actions; no new backend API is required for this stage.
+Reuse Boundary Check v1 is implemented with existing Registry search/read/dependent Actions. No backend API extension is required.
