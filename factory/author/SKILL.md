@@ -1,98 +1,158 @@
 ---
 name: skill-author
-description: Implement approved Skill/Flow/Suite packages on non-main branches with canonical paths, progressive disclosure, Flow v1/v2 schema fidelity, validation, security boundaries, and minimal duplication.
+description: Implement Agent Skill packages on non-main branches with correct registry paths, progressive disclosure, explicit contracts, appropriate references/scripts/assets/evals, validation, and minimal duplication.
 ---
 
 # Mission
 
-Author only the Registry changes approved by Architect. Never invent schema-fitting Skills to compensate for an unsupported Flow primitive.
+Author complete Skill packages from an approved architecture. A Skill package is not synonymous with one SKILL.md file.
+
+Flow and Suite packages are additional first-class Registry package types; their authoring must preserve every Skill-package rule below for Skills.
 
 # Before writing
 
-Inspect the current package, referenced Registry objects, evals, and approved architecture. For existing Skills preserve responsibility/contract unless explicit refactor scope says otherwise. For Flow work confirm the intended `schema_version` and supported step types before authoring.
+For a new Skill, confirm:
 
-# Canonical package roots
+- target package path;
+- package structure;
+- what must remain in SKILL.md;
+- what belongs in references;
+- whether scripts are justified;
+- whether assets are justified;
+- what evals are required.
 
-- Skill: `skills/<skill-name>/SKILL.md` plus justified references/scripts/assets/evals.
-- Flow: `flows/<flow-name>/FLOW.json` plus optional evals.
-- Suite: `suites/<suite-name>/SUITE.json` plus optional evals.
+For an existing Skill, inspect before changing:
 
-Never write directly to main, never use root-level Skill packages, and never nest Skills/Flows under Suites.
+1. current `SKILL.md`;
+2. directory structure;
+3. references;
+4. scripts;
+5. assets;
+6. evals.
 
-# Skill authoring
+Do not recreate information that already exists in another package file.
 
-Keep trigger/non-trigger, responsibility, core workflow, contracts, quality gate, failure handling, and resource-loading rules in SKILL.md. Use references for conditional detail, scripts for deterministic processing, assets for reusable source material, and evals for behavior/regression coverage.
+For Flow/Suite work, likewise inspect the current manifest, package directory, evals, and referenced Registry objects before changing it.
 
-# Flow v1 authoring
+# Registry path invariant
 
-`schema_version:1` supports only:
+Skill packages must live under:
 
-- `exact_skill`
-- `capability`
-
-Preserve exact Skill no-substitution, capability discovery, DAG, existing handoff language, declarative condition, completion, and visibility semantics. Do not auto-migrate or rewrite v1 Flows.
-
-# Flow v2 authoring
-
-`schema_version:2` supports:
-
-- `exact_skill`
-- `capability`
-- `model`
-- `tool`
-
-`exact_skill`/`capability` keep v1 semantics.
-
-## model
-
-Author only for approved Capability Gap Plan disposition=`model`.
+`skills/<skill-name>/`
 
 Required:
 
-- non-empty `instruction`;
-- `input_handoff` using the existing Flow contract;
-- non-empty `expected_output`.
+`skills/<skill-name>/SKILL.md`
 
-Do not define `skill`, top-level `capability`, `tool`, or `arguments`. Do not pin provider/model names. Instructions must describe pure LLM-native work and must not ask the model step to fetch web/API/connector/current external state.
+Optional:
 
-## tool
+- `skills/<skill-name>/references/`
+- `skills/<skill-name>/scripts/`
+- `skills/<skill-name>/assets/`
+- `skills/<skill-name>/evals/`
 
-Author only for approved disposition=`external_tool`.
+Never write `<skill-name>/SKILL.md` at repository root. Reject absolute paths, traversal, and accidental writes into another Skill directory.
 
-Required `tool` object:
+After writing, inspect the diff and confirm all intended Skill-package changes are under the expected `skills/<skill-name>/` root.
 
-- `mode: "capability"` with non-empty `tool.capability`, no `tool.name`; or
-- `mode: "exact"` with non-empty `tool.name`, no `tool.capability`;
-- `effect: "read_only" | "mutating"`.
+Additional canonical Registry packages are:
 
-`arguments` is an object and may be omitted as `{}`. Do not define top-level `skill`, `capability`, or `instruction`. Never add authorization bypass fields such as `skip_confirmation`, `auto_approve`, or `bypass_auth`.
+- `flows/<flow-name>/FLOW.json` with optional `evals/`;
+- `suites/<suite-name>/SUITE.json` with optional `evals/`.
 
-Exact tool binding must not encode fallback substitution. Capability binding remains runtime-resolved; build-time authoring does not require a currently connected tool.
+Never nest Skills or Flows beneath Suites. Use the generalized Registry path guard for Registry writes/deletes while retaining legacy Skill path compatibility.
 
-# Common Flow contracts
+# SKILL.md core
 
-Reuse only:
+Keep always-needed execution material in SKILL.md:
 
-- `required`
-- `depends_on`
-- declarative `condition.when`
-- `input_handoff`
-- `expected_output`
-- `completion.required_steps = "all_required"`
-- `completion.outputs`
+- trigger and non-trigger;
+- responsibility;
+- core workflow;
+- critical decision rules;
+- input contract;
+- output contract;
+- quality gate;
+- resource loading rules;
+- failure handling;
+- Definition of Done.
 
-Handoff paths remain `flow.<input>` and `steps.<step-id>.<output>`. Never introduce new JSONPath/expression syntax. Downstream references must target declared upstream outputs.
+For composable Skills, make inputs/outputs and handoff expectations sufficiently explicit for loose coupling. Do not require one named upstream Skill when an input contract is enough.
 
-Do not author nested Flow, loops, arbitrary code, or explicit human-approval step types in Flow v2 MVP. If required architecture contains an unsupported primitive, return to Architect as `unsupported_flow_capability` rather than distorting the design.
+# Progressive Disclosure
 
-# Output/security integrity
+Load `references/progressive-disclosure.md` when the package contains substantial conditional detail or SKILL.md approaches roughly 150–200 lines.
 
-Do not author prompts that infer missing tool output fields. Expected output is the only downstream contract. Tool `effect` is a maximum effect, not authorization; mutating still requires runtime authorization/confirmation/safety.
+Consider moving out:
+
+- long rubrics and pattern lists;
+- medium- or industry-specific guidance;
+- detailed checklists;
+- case-specific knowledge;
+- long good/bad examples;
+- long explanations of core rules.
+
+Do not split mechanically by line count. Do not move essential judgment out if the core Skill can no longer execute straightforward requests without loading references.
+
+Every reference must have a clear loading condition in SKILL.md. Avoid tiny overlapping references and unused files.
+
+# Resource boundaries
+
+Use:
+
+- `references/` for conditional knowledge;
+- `scripts/` for deterministic or repeated processing, validation, format checks, or static analysis;
+- `assets/` for templates, images, reusable source files, or reference visuals;
+- `evals/` for positive, implicit, explicit, negative, near-miss, known-good, known-bad, and regression behavior as relevant.
+
+# Flow authoring
+
+Use JSON for v1. FLOW.json must match its directory name, identify `kind: "flow"` and `schema_version: 1`, and define a DAG whose steps express id, target type, dependencies, boolean required status, optional limited declarative condition, input handoff, and expected outputs.
+
+- `exact_skill` pins a specific Skill; do not author implicit substitutions.
+- `capability` defines a capability query and may allow dynamic compose when the architecture requires it.
+- handoffs reference declared Flow inputs or outputs declared by dependency steps;
+- do not copy Skill body text, Skill-specific prompts, or detailed Skill procedure into the Flow;
+- do not author Flow → Flow recursion in v1.
+
+# Suite authoring
+
+Use JSON for v1. SUITE.json must match its directory name, identify `kind: "suite"` and `schema_version: 1`, and reference member Skills/Flows without ownership. Optional policy, quality gates, and artifact-contract references are context-scoped only and must not be described as globally injected member behavior.
+
+Public Flow/Suite manifests may reference public objects only. Private manifests may explicitly reference public or private objects.
 
 # Change workflow
 
-Use non-main branch → write → validate → diff → reviewer. Run the corresponding manifest validator/secret scan. Do not create a PR unless explicitly requested.
+Use a non-main branch. Perform write → validate → diff, then hand the completed package to reviewer. Do not create a PR unless the user explicitly requested or authorized it.
+
+For Flow/Suite packages, run the corresponding manifest validator and secret scan before diff review.
 
 # Definition of done
 
-Authoring is complete when the approved schema version and step types are represented exactly, no schema-fitting Skill was introduced, handoffs reference declared outputs, public/private boundaries are safe, validation passes in the applicable runtime/version, and Reviewer receives the complete changed package.
+Authoring is complete when:
+
+- package path is canonical;
+- SKILL.md contains the core and only the core;
+- conditional resources are structured without duplication;
+- eval coverage includes realistic triggers and regressions;
+- validation and secret scan pass;
+- diff stays within intended package boundaries;
+- reviewer receives the complete package, not only SKILL.md.
+
+For Flow/Suite packages, also require JSON/schema/reference validation, non-owning membership, exact/capability semantics, safe visibility, and no duplicated Skill How.
+
+# Flow v2 MVP addendum — model / tool first-class steps
+
+This addendum is version-scoped. Existing Flow v1 authoring above remains unchanged for `schema_version: 1`; v1 must not be auto-migrated or rewritten.
+
+For `schema_version: 2`, allowed step types are `exact_skill`, `capability`, `model`, and `tool`. Exact/capability preserve v1 semantics.
+
+Author a `model` step only for an approved Capability Gap Plan disposition=`model`. It requires non-empty `instruction`, normal `input_handoff`, and non-empty `expected_output`. Do not define `skill`, top-level `capability`, `tool`, or `arguments`; do not pin provider/model; do not instruct the step to fetch web/API/connector/plugin/current external state.
+
+Author a `tool` step only for disposition=`external_tool`. `tool.mode` is `capability` or `exact`; `tool.effect` is `read_only` or `mutating`. Capability mode requires non-empty `tool.capability` and no `tool.name`; exact mode requires non-empty `tool.name` and no `tool.capability`. `arguments` is an object if present. Do not define top-level skill/capability/instruction or authorization-bypass fields such as `skip_confirmation`, `auto_approve`, or `bypass_auth`.
+
+Exact tool binding must not encode fallback substitution. Capability binding is runtime-resolved and does not require a currently connected tool at build time.
+
+Reuse the existing DAG/condition/handoff/expected-output/completion language only. Downstream references must target declared outputs. Missing required runtime output is `STEP_OUTPUT_INVALID`; do not invent missing tool data with a model.
+
+Do not author nested Flow, loops, arbitrary code, or explicit human-approval step types in v2 MVP. If required, return `unsupported_flow_capability` to Architect instead of distorting the design.
