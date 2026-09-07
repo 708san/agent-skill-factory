@@ -1,101 +1,82 @@
-# Multi-Skill Composition Runtime
+# Multi-Skill and Saved Flow Runtime
 
-Load this reference only after the orchestrator has decided that multiple Skills are necessary or the user explicitly requested multiple Skills.
+Load this reference after the orchestrator selects dynamic composition or saved Flow execution.
 
-## Minimal composition rule
+## Dynamic composition
 
-Select the smallest Skill set that can complete the user goal at the requested quality level. Do not add Skills because they are merely relevant or available.
+Select the smallest Skill set that completes the goal. Do not compose when one Skill owns the coherent workflow, when steps are merely internal stages, or when model judgment between Skills is enough. Maintain an internal execution plan with goal, selected Skills, order, responsibilities, inputs, outputs, handoffs, dependencies, and completion condition.
 
-Do not compose when:
+Dynamic compose is read-only temporary execution and never implies persistence.
 
-- one Skill's core workflow naturally completes the task;
-- the task simply has multiple steps;
-- normal model judgment is sufficient between Skill steps;
-- splitting creates handoff cost without a meaningful quality or reuse gain.
+## Existing Skill handoff
 
-## Skill Execution Plan
+Pass only downstream contract data. Never dump complete upstream instructions/references. Do not execute downstream work with missing required input. Public/private Skills may be combined read-only, but private material must not be written publicly.
 
-Maintain an internal plan with these fields:
+## Saved Flow common semantics
 
-- `user_goal`
-- `selected_skills`
-- `execution_order`
-- `responsibilities`
-- `inputs`
-- `expected_outputs`
-- `handoffs`
-- `dependencies`
-- `completion_condition`
+Validate first. Honor DAG dependencies, `required`, declarative `condition.when`, `input_handoff`, `expected_output`, and `completion.required_steps=all_required`.
 
-The plan need not be shown verbatim to the user.
+Supported handoff sources remain only:
 
-## Selection
+- `flow.<input>`
+- `steps.<step-id>.<output>`
 
-1. Search the Registry instead of assuming a fixed chain.
-2. Evaluate each candidate's responsibility, trigger/non-trigger, inputs, outputs, quality gate, and constraints.
-3. Remove candidates that are redundant or not necessary for completion.
-4. Respect explicit exclusions and stopping points from the user.
+A downstream handoff/output reference must target a field declared in the upstream step's `expected_output`.
 
-## Sequential handoff
+Applicable required-step failure prevents full success.
 
-For each dependent pair, record:
+## Flow v1
 
-- upstream Skill
-- downstream Skill
-- transferred information or artifact
-- assumptions
-- unresolved items
+`schema_version:1` supports `exact_skill` and `capability` only. Keep exact Skill no-substitution and capability Skill-discovery semantics unchanged. Do not auto-migrate v1.
 
-Pass only the information needed by the downstream contract. Do not dump the upstream Skill's full instructions, references, or irrelevant intermediate material into the next Skill.
+## Flow v2
 
-Example handoff:
+`schema_version:2` adds `model` and `tool` while preserving v1 step semantics.
 
-`creative-theme-planning` output:
+### model execution
 
-- target
-- problem
-- key value
-- CTA
-- visual direction
+1. Resolve flow inputs and input handoffs.
+2. Read the manifest `instruction`.
+3. Execute with the current host/runtime LLM only.
+4. Do not invoke tools, web search, connectors, plugins, external APIs, or current external state.
+5. Normalize only fields declared by `expected_output`.
+6. Missing required expected field → `STEP_OUTPUT_INVALID`.
 
-`visual-composition` input:
+Provider/model identity is runtime policy, not Flow manifest configuration.
 
-- target
-- key value
-- CTA
-- visual direction
+### tool execution
 
-## Parallelizable work
+1. Resolve `tool.mode`.
+2. For exact binding, require the named tool; no silent substitution. Missing → `TOOL_UNAVAILABLE`.
+3. For capability binding, choose an available matching runtime tool; no match → `TOOL_UNAVAILABLE`.
+4. Check actual tool effect against manifest maximum effect.
+5. `read_only` + mutating/unknown actual effect → block with `TOOL_AUTH_DENIED`.
+6. Apply normal tool/platform authorization, user confirmation, and safety policy. Manifest `mutating` never bypasses them.
+7. Pass manifest `arguments` plus resolved handoff inputs.
+8. Normalize only declared expected outputs; never invent missing fields.
+9. Missing expected field → `STEP_OUTPUT_INVALID`.
 
-Mark dependencies explicitly. If two Skills have no dependency, they are logically parallelizable. If the available runtime executes sequentially, preserve the logical independence without pretending true parallel execution occurred.
+Tool availability is evaluated at runtime, not by build-time capability representability.
+
+## Failure semantics
+
+Use these stable Flow runtime failure codes where applicable:
+
+- `SKILL_NOT_FOUND`
+- `TOOL_UNAVAILABLE`
+- `TOOL_AUTH_DENIED`
+- `MODEL_UNAVAILABLE`
+- `STEP_TIMEOUT`
+- `STEP_OUTPUT_INVALID`
+
+Do not silently remove, optionalize, or replace a failed required step and still claim full success.
+
+## Retry MVP
+
+- transient model failure: limited retry allowed;
+- transient read-only tool failure: limited retry allowed;
+- mutating tool: no automatic retry until a future idempotency contract exists.
 
 ## Replanning
 
-Update the plan when:
-
-- a selected Skill is unsuitable;
-- a required Skill is missing;
-- upstream output differs materially from expectation;
-- a planned downstream Skill becomes unnecessary;
-- an additional responsibility becomes necessary.
-
-After replanning, re-apply the minimal composition rule. Do not let the chain grow without bound.
-
-## Failure handling
-
-When a Skill cannot provide required output:
-
-1. determine whether corrected input to the same Skill can solve it;
-2. supplement or repair the upstream handoff when possible;
-3. search for a replacement Skill only if needed;
-4. ask the user for missing information when the requirement cannot otherwise be satisfied.
-
-Never execute a downstream Skill when its required input is missing or invalid.
-
-## Public/private composition
-
-Public and private Skills may be combined in read-only use mode. Keep visibility explicit per Skill. Never write private Skill content, references, or derived private repository material into the public repository unless the publisher workflow explicitly sanitizes it.
-
-## Completion
-
-Composition is complete when the user's requested final output is produced, each required handoff was satisfied, unnecessary planned Skills were skipped, and no user stop/exclusion constraint was violated.
+Dynamic composition may replan when a selected Skill is unsuitable or handoff is incomplete. A saved Flow must preserve its manifest semantics: exact Skill substitution is forbidden and required steps cannot be semantically replaced merely to obtain success.
